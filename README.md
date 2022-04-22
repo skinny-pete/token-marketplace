@@ -1,4 +1,6 @@
-# Changeblock Smart Contracts
+# ERC20/ERC721 Marketplace
 
-- Marketplace
-- Fund
+Simple smart contract marketplace that collects a fee on transactions and sends it to a treasury address
+
+Hardhat/Waffle
+Requires openzeppelin contracts
