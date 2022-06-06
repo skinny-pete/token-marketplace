@@ -4,3 +4,6 @@ Simple smart contract marketplace that collects a fee on transactions and sends 
 
 Hardhat/Waffle
 Requires openzeppelin contracts
+
+
+![image](https://user-images.githubusercontent.com/52208431/172168615-267ae744-a654-4bfd-8940-77320f21a3f7.png)
