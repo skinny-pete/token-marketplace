@@ -383,6 +383,38 @@ describe("ChangeblockMarketplace", function () {
       )
     ).to.be.revertedWith("Approved sellers only");
   });
+
+  it("Allows bidding", async () => {
+    await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
+    await marketplace.approveSeller(deployer.address, true);
+    await marketplace.listERC20(
+      amount,
+      ecoTokenPrice,
+      ecoToken.address,
+      stableCoin.address
+    );
+    const basePayment = ecoTokenPrice.mul(amount);
+    const fee = basePayment.mul(feeNumerator).div(feeDenominator);
+    await mintAndApproveERC20(
+      stableCoin,
+      basePayment.add(fee),
+      buyer,
+      marketplace
+    );
+    const listingId = getListingId(
+      amount,
+      ecoTokenPrice,
+      deployer,
+      ecoToken,
+      stableCoin
+    );
+    await marketplace.approveBuyer(buyer.address, true);
+
+    const bidPrice = ethers.utils.parseEther("10");
+    const bidQuantity = ethers.utils.parseEther("15");
+
+    await expect(marketplace.connect(buyer).bidERC20(listingId));
+  });
 });
 
 // npx hardhat test test/ChangeblockMarketplace.js
