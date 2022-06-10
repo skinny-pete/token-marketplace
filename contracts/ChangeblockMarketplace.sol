@@ -104,8 +104,10 @@ contract ChangeblockMarketplace is Ownable {
         //Move last element to index, then delete last element
         //Obviously does not conserve order of elements
         uint l = bids[listingId].length;
-        require(index < l);
+        require(index <= l);
+        Bid memory movedBid = bids[listingId][l - 1];
         bids[listingId][index] = bids[listingId][l - 1];
+        bidMap[movedBid.bidder][listingId] = index; //update bidmap, the last element has changed index, so set bidmap to new index
         delete bids[listingId][l - 1];
     }
 
@@ -114,7 +116,7 @@ contract ChangeblockMarketplace is Ownable {
         uint256 price,
         address product,
         address currency
-    ) public onlySeller {
+    ) public onlySeller returns (uint) {
         IERC20(product).transferFrom(msg.sender, address(this), amount);
         uint256 listingId = uint256(
             keccak256(abi.encode(amount, price, msg.sender, product, currency))
@@ -135,6 +137,8 @@ contract ChangeblockMarketplace is Ownable {
             currency,
             listingId
         );
+
+        return listingId;
     }
 
     function listERC721(
@@ -142,7 +146,7 @@ contract ChangeblockMarketplace is Ownable {
         uint256 price,
         address product,
         address currency
-    ) public onlySeller {
+    ) public onlySeller returns (uint) {
         IERC721(product).transferFrom(msg.sender, address(this), id);
         uint256 listingId = uint256(
             keccak256(abi.encode(id, price, msg.sender, product, currency))
@@ -163,6 +167,8 @@ contract ChangeblockMarketplace is Ownable {
             currency,
             listingId
         );
+
+        return listingId;
     }
 
     function buyERC20(uint256 listingId, uint256 amount) public onlyBuyer {
@@ -236,7 +242,7 @@ contract ChangeblockMarketplace is Ownable {
         Bid storage bid = bids[listingId][index];
         if (accept) {
             uint payment = bid.price * bid.quantity;
-            uint fee = (payment * FEE_NUMERATOR) / FEE_NUMERATOR;
+            uint fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
             IERC20(listing.product).transfer(bid.bidder, bid.quantity);
             ERC20listings[listingId].amount -= bid.quantity;
 
@@ -252,15 +258,14 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     function withdrawBid(uint listingId) public onlyBuyer {
-        //TODO!
         require(hasBid[msg.sender][listingId], "No bid to withdraw");
         uint index = bidMap[msg.sender][listingId];
         Bid memory bid = bids[listingId][index];
         ERC20Listing memory listing = ERC20listings[listingId];
         uint amount = bid.price * bid.quantity;
-        IERC20(listing.currency).transfer(msg.sender, amount);
         hasBid[msg.sender][listingId] = false;
 
+        IERC20(listing.currency).transfer(msg.sender, amount);
         popBid(listingId, index);
     }
 
