@@ -6,6 +6,10 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
+/// @title A marketplace for selling and bidding on ERC20s and ERC721s
+/// @author Theo Dale + Peter Whitby
+/// @notice This marketplace allows whitelisted seller and buyers to list / purchase tokens
+
 contract ChangeblockMarketplace is Ownable {
     struct ERC20Listing {
         uint256 amount;
@@ -28,7 +32,13 @@ contract ChangeblockMarketplace is Ownable {
         uint price;
         address bidder;
     }
-
+    /// @notice event for an ERC20 listing
+    /// @param amount the quantity of tokens to make available for sale - they are locked
+    /// @param price the price for one token
+    /// @param vendor the address of the lister
+    /// @param product the address of the token being sold
+    ///@param currency the address of the token used as payment (eg a stablecoin)
+    ///@param listingId the unique ID of this listing
     event ERC20Registration(
         uint256 amount,
         uint256 price,
@@ -37,7 +47,13 @@ contract ChangeblockMarketplace is Ownable {
         address currency,
         uint256 listingId
     );
-
+    /// @notice event for an ERC721 listing
+    /// @param id the ERC721 ID of the NFT being sold (not listingId)
+    /// @param price the price of the NFT
+    /// @param vendor the address of the lister
+    /// @param product the address of the NFT being sold
+    /// @param currency the address of the token used as payment (eg a stablecoin)
+    /// @param listingId the unique ID of this listing
     event ERC721Registration(
         uint256 id,
         uint256 price,
@@ -47,22 +63,41 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
-    // BidPlaced(_listingId, _quantity, _price, msg.sender)
+    /// @notice event for a bid being placed (only applicable to ERC20s)
+    /// @param listingId the id of the listing being bid on
+    /// @param quantity the number of tokens the buyer wishes to purchase
+    /// @param price the price per token the buyer is offering to pay
+    /// @param bidder the address of the account placing the bid
     event BidPlaced(uint listingId, uint quantity, uint price, address bidder);
+
+    /// @notice event for a bid being withdrawn (the user cancels their bid before it has been fulfilled)
+    /// @param listingId the ID of the listing from which the bid is withdrawn
+    /// @param bidder the address of the account withdrawing the bid
     event BidWithdrawn(uint listingId, address bidder);
 
+    /// @notice event for the removal of a listing
+    /// @param listingId the ID of the listing removed
     event Removal(uint256 listingId);
+
+    /// @notice event emitted when a sale is completed
+    /// @param listingId ID of the listing
     event Sale(uint256 listingId);
 
+    /// @notice seller whitelist
     mapping(address => bool) public sellerApprovals;
+
+    /// @notice buyer whitelist
     mapping(address => bool) public buyerApprovals;
 
     //listingId => bids
+    ///@notice mapping of listindId to array of bids
     mapping(uint256 => Bid[]) public bids;
 
     //Account => listingId => indexOfBidInBids;
+    ///@notice Account address => listingId => indexOfBid;
     mapping(address => mapping(uint => uint)) bidMap;
 
+    ///@notice account => listingId => bool
     mapping(address => mapping(uint => bool)) hasBid;
 
     //Bidding process:
@@ -89,6 +124,11 @@ contract ChangeblockMarketplace is Ownable {
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
     address TREASURY;
+
+    ///@notice contract constructor. [FEE_NUMERATOR=3, FEE_DENOMINATOR=100] means a 3% fee
+    ///@dev can be any uint, no precision constraints
+    ///@param treasury the address to send fees to
+    ///@dev warning: no checks are performed on the treasury address - make sure you have the private key for this account!
 
     constructor(
         uint256 feeNumerator,
