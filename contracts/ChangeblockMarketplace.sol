@@ -29,16 +29,26 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
+    struct Bid {
+        uint256 quantity;
+        uint256 payment;
+        address bidder;
+    }
+
     // -------------------- STATE VARIABLES --------------------
 
-    /// @notice seller whitelist
+    /// @notice Seller whitelist.
     mapping(address => bool) public sellerApprovals;
 
-    /// @notice buyer whitelist
+    /// @notice Buyer whitelist.
     mapping(address => bool) public buyerApprovals;
 
     mapping(uint256 => ERC20Listing) public ERC20listings;
     mapping(uint256 => ERC721Listing) public ERC721listings;
+
+    /// @notice Bids for each listing.
+    /// @dev Maps listingId => bidId => Bid.
+    mapping(uint256 => mapping(uint256 => Bid)) bids;
 
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
@@ -78,17 +88,18 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
-    // /// @notice event for a bid being placed (only applicable to ERC20s)
-    // /// @param listingId the id of the listing being bid on
-    // /// @param quantity the number of tokens the buyer wishes to purchase
-    // /// @param price the price per token the buyer is offering to pay
-    // /// @param bidder the address of the account placing the bid
-    // event BidPlaced(
-    //     uint256 listingId,
-    //     uint256 quantity,
-    //     uint256 price,
-    //     address bidder
-    // );
+    /// @notice event for a bid being placed (only applicable to ERC20s)
+    /// @param listingId the id of the listing being bid on
+    /// @param quantity the number of tokens the buyer wishes to purchase
+    /// @param price the price per token the buyer is offering to pay
+    /// @param bidder the address of the account placing the bid
+    event BidPlaced(
+        uint256 indexed listingId,
+        uint256 bidId,
+        uint256 quantity,
+        uint256 price,
+        address bidder
+    );
 
     /// @notice event for a bid being withdrawn (the user cancels their bid before it has been fulfilled)
     /// @param listingId the ID of the listing from which the bid is withdrawn
@@ -257,22 +268,6 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- BIDDING --------------------
 
-    struct Bid {
-        uint256 quantity;
-        uint256 payment;
-        address bidder;
-    }
-
-    event BidPlaced(
-        uint256 indexed listingId,
-        uint256 quantity,
-        uint256 payment,
-        address bidder
-    );
-
-    // listingId => bidId => Bid
-    mapping(uint256 => mapping(uint256 => Bid)) bids;
-
     /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
     /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
     function bid(
@@ -294,7 +289,7 @@ contract ChangeblockMarketplace is Ownable {
         bids[listingId][bidId].bidder = msg.sender;
         bids[listingId][bidId].quantity += quantity;
         bids[listingId][bidId].payment += payment;
-        emit BidPlaced(listingId, quantity, payment, msg.sender);
+        emit BidPlaced(listingId, bidId, quantity, payment, msg.sender);
     }
 
     /// @param listingId The listing that the accepted bid was made for
