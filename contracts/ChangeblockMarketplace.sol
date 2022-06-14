@@ -95,7 +95,6 @@ contract ChangeblockMarketplace is Ownable {
     /// @param bidder the address of the account placing the bid
     event BidPlaced(
         uint256 indexed listingId,
-        uint256 bidId,
         uint256 quantity,
         uint256 price,
         address bidder
@@ -275,21 +274,15 @@ contract ChangeblockMarketplace is Ownable {
         uint256 quantity,
         uint256 payment
     ) public onlyBuyer {
-        ERC20Listing memory listing = ERC20listings[listingId];
-        require(
-            IERC20(listing.currency).transferFrom(
-                msg.sender,
-                address(this),
-                payment
-            )
-        );
         uint256 bidId = uint256(
             keccak256(abi.encode(quantity, payment, msg.sender))
         );
-        bids[listingId][bidId].bidder = msg.sender;
-        bids[listingId][bidId].quantity += quantity;
-        bids[listingId][bidId].payment += payment;
-        emit BidPlaced(listingId, bidId, quantity, payment, msg.sender);
+        require(
+            bids[listingId][bidId].payment == 0,
+            'Bid of this type already made'
+        );
+        bids[listingId][bidId] = Bid(quantity, payment, msg.sender);
+        emit BidPlaced(listingId, quantity, payment, msg.sender);
     }
 
     /// @param listingId The listing that the accepted bid was made for
