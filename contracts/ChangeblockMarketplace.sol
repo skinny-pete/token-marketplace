@@ -6,6 +6,10 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 
+/// @title A marketplace for selling and bidding on ERC20s and ERC721s
+/// @author Theo Dale & Peter Whitby
+/// @notice This marketplace allows whitelisted seller and buyers to list / purchase tokens
+
 contract ChangeblockMarketplace is Ownable {
     // -------------------- STRUCTS --------------------
 
@@ -27,14 +31,14 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- STATE VARIABLES --------------------
 
+    /// @notice seller whitelist
     mapping(address => bool) public sellerApprovals;
+
+    /// @notice buyer whitelist
     mapping(address => bool) public buyerApprovals;
 
     mapping(uint256 => ERC20Listing) public ERC20listings;
     mapping(uint256 => ERC721Listing) public ERC721listings;
-
-    uint256[] public ERC20listingIds;
-    uint256[] public ERC721listingIds;
 
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
@@ -43,27 +47,61 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- EVENTS --------------------
 
+    /// @notice event for an ERC20 listing
+    /// @param amount the quantity of tokens to make available for sale - they are locked
+    /// @param price the price for one token
+    /// @param vendor the address of the lister
+    /// @param product the address of the token being sold
+    /// @param currency the address of the token used as payment (eg a stablecoin)
+    /// @param listingId the unique ID of this listing
     event ERC20Registration(
         uint256 amount,
         uint256 price,
-        address vendor,
-        address product,
+        address indexed vendor,
+        address indexed product,
         address currency,
         uint256 listingId
     );
-
+    /// @notice event for an ERC721 listing
+    /// @param id the ERC721 ID of the NFT being sold (not listingId)
+    /// @param price the price of the NFT
+    /// @param vendor the address of the lister
+    /// @param product the address of the NFT being sold
+    /// @param currency the address of the token used as payment (eg a stablecoin)
+    /// @param listingId the unique ID of this listing
     event ERC721Registration(
         uint256 id,
         uint256 price,
-        address vendor,
-        address product,
+        address indexed vendor,
+        address indexed product,
         address currency,
         uint256 listingId
     );
 
-    event Removal(uint256 listingId);
+    // /// @notice event for a bid being placed (only applicable to ERC20s)
+    // /// @param listingId the id of the listing being bid on
+    // /// @param quantity the number of tokens the buyer wishes to purchase
+    // /// @param price the price per token the buyer is offering to pay
+    // /// @param bidder the address of the account placing the bid
+    // event BidPlaced(
+    //     uint256 listingId,
+    //     uint256 quantity,
+    //     uint256 price,
+    //     address bidder
+    // );
 
-    event Sale(uint256 listingId);
+    /// @notice event for a bid being withdrawn (the user cancels their bid before it has been fulfilled)
+    /// @param listingId the ID of the listing from which the bid is withdrawn
+    /// @param bidder the address of the account withdrawing the bid
+    event BidWithdrawn(uint256 indexed listingId, address bidder);
+
+    /// @notice event for the removal of a listing
+    /// @param listingId the ID of the listing removed
+    event Removal(uint256 indexed listingId);
+
+    /// @notice event emitted when a sale is completed
+    /// @param listingId ID of the listing
+    event Sale(uint256 indexed listingId);
 
     // -------------------- MODIFIERS --------------------
 
@@ -77,6 +115,12 @@ contract ChangeblockMarketplace is Ownable {
         _;
     }
 
+    ///@notice Contract constructor.
+    ///@dev Sale fee is calculated by feeNumerator/feeDenominator.
+    ///@param feeNumerator Numerator for fee calculation.
+    ///@param feeDenominator Denominator for fee calculation.
+    ///@param treasury Address to send fees to.
+    ///@dev Warning: no checks are performed on the treasury address - make sure you have the private key for this account!
     constructor(
         uint256 feeNumerator,
         uint256 feeDenominator,
@@ -132,12 +176,11 @@ contract ChangeblockMarketplace is Ownable {
         uint256 price,
         address product,
         address currency
-    ) public onlySeller {
+    ) public onlySeller returns (uint256) {
         IERC20(product).transferFrom(msg.sender, address(this), amount);
         uint256 listingId = uint256(
             keccak256(abi.encode(amount, price, msg.sender, product, currency))
         );
-        ERC20listingIds.push(listingId);
         ERC20listings[listingId] = ERC20Listing(
             amount + ERC20listings[listingId].amount,
             price,
@@ -153,6 +196,8 @@ contract ChangeblockMarketplace is Ownable {
             currency,
             listingId
         );
+
+        return listingId;
     }
 
     function listERC721(
@@ -160,12 +205,11 @@ contract ChangeblockMarketplace is Ownable {
         uint256 price,
         address product,
         address currency
-    ) public onlySeller {
+    ) public onlySeller returns (uint256) {
         IERC721(product).transferFrom(msg.sender, address(this), id);
         uint256 listingId = uint256(
             keccak256(abi.encode(id, price, msg.sender, product, currency))
         );
-        ERC721listingIds.push(listingId);
         ERC721listings[listingId] = ERC721Listing(
             id,
             price,
@@ -181,6 +225,8 @@ contract ChangeblockMarketplace is Ownable {
             currency,
             listingId
         );
+
+        return listingId;
     }
 
     function delistERC20(uint256 amount, uint256 listingId) public {
@@ -209,7 +255,81 @@ contract ChangeblockMarketplace is Ownable {
         emit Removal(listingId);
     }
 
+    // -------------------- BIDDING --------------------
+
+    struct Bid {
+        uint256 quantity;
+        uint256 payment;
+        address bidder;
+    }
+
+    event BidPlaced(
+        uint256 indexed listingId,
+        uint256 quantity,
+        uint256 payment,
+        address bidder
+    );
+
+    // listingId => bidId => Bid
+    mapping(uint256 => mapping(uint256 => Bid)) bids;
+
+    /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
+    /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
+    function bid(
+        uint256 listingId,
+        uint256 quantity,
+        uint256 payment
+    ) public onlyBuyer {
+        ERC20Listing memory listing = ERC20listings[listingId];
+        require(
+            IERC20(listing.currency).transferFrom(
+                msg.sender,
+                address(this),
+                payment
+            )
+        );
+        uint256 bidId = uint256(
+            keccak256(abi.encode(quantity, payment, msg.sender))
+        );
+        bids[listingId][bidId].bidder = msg.sender;
+        bids[listingId][bidId].quantity += quantity;
+        bids[listingId][bidId].payment += payment;
+        emit BidPlaced(listingId, quantity, payment, msg.sender);
+    }
+
+    /// @param listingId The listing that the accepted bid was made for
+    /// @param bidId The ID of the bid being accepted
+    function acceptBid(uint256 listingId, uint256 bidId) public {
+        address vendor = ERC20listings[listingId].vendor;
+        require(vendor == msg.sender, 'Only vendor can accept a bid');
+        uint256 quantity = bids[listingId][bidId].quantity;
+        require(
+            ERC20listings[listingId].amount >= quantity,
+            'Insufficient tokens listed to fulfill bid'
+        );
+        IERC20(ERC20listings[listingId].currency).transfer(
+            vendor,
+            bids[listingId][bidId].payment
+        );
+        IERC20(ERC20listings[listingId].product).transfer(msg.sender, quantity);
+        ERC20listings[listingId].amount -= quantity;
+        delete bids[listingId][bidId];
+    }
+
+    function withdrawBid(uint256 listingId, uint256 bidId) public onlyBuyer {
+        address bidder = bids[listingId][bidId].bidder;
+        require(msg.sender == bidder, 'Only bidder can cancel a bid');
+        IERC20(ERC20listings[listingId].currency).transfer(
+            bidder,
+            bids[listingId][bidId].payment
+        );
+        delete bids[listingId][bidId];
+    }
+
     // -------------------- ADMIN --------------------
+
+    // if we have this, we need to have an max price in the buy function
+    function updatePrice() external {}
 
     function setSellers(address[] calldata targets, bool[] calldata approvals)
         public
@@ -228,4 +348,8 @@ contract ChangeblockMarketplace is Ownable {
             buyerApprovals[targets[i]] = approvals[i];
         }
     }
+
+    function setFeeNumerator() external onlyOwner {}
+
+    function setFeeDenominator() external onlyOwner {}
 }
