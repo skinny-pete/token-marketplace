@@ -1,13 +1,13 @@
-// ------------------- CHANGEBLOCK UTILS -------------------
+// ------------------- CHANGEBLOCK MARKETPLACE UTILS -------------------
 
 // For use in tests and scripts
 
-// Get ID for either an ERC20 or ERC721 listing
-const getListingId = (amountOrId, price, seller, sellToken, buyToken) => {
+// Get ID for either an ERC20 listing
+const getERC20ListingId = (price, seller, sellToken, buyToken) => {
   return ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
-      ["uint256", "uint256", "address", "address", "address"],
-      [amountOrId, price, seller.address, sellToken.address, buyToken.address]
+      ['uint256', 'address', 'address', 'address'],
+      [price, seller.address, sellToken.address, buyToken.address]
     )
   );
 };
@@ -31,9 +31,29 @@ const getFee = (amount, feeNumerator, feeDenominator) => {
   return amount.mul(feeNumerator).div(feeDenominator);
 };
 
+// Mint, approve, then list some tokens
+const setupListing = async (
+  lister,
+  marketplace,
+  token,
+  amount,
+  price,
+  currency
+) => {
+  await mintAndApproveERC20(token, amount, lister, marketplace);
+  await marketplace.setSellers([lister.address], [true]);
+  await marketplace
+    .connect(lister)
+    .listERC20(amount, price, token.address, currency.address);
+  return ethers.BigNumber.from(
+    getERC20ListingId(price, lister, token, currency)
+  );
+};
+
 module.exports = {
-  getListingId,
+  getERC20ListingId,
   mintAndApproveERC20,
   mintAndApproveERC721,
   getFee,
+  setupListing,
 };

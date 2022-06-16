@@ -1,9 +1,7 @@
-# ERC20/ERC721 Marketplace
+# Changeblock Marketplace
 
-Simple smart contract marketplace that collects a fee on transactions and sends it to a treasury address
+This repo contains the contracts and unit tests for the Changeblock marketplace
 
-Hardhat/Waffle
-Requires openzeppelin contracts
+Authors - Theo Dale & Peter Whitby
 
-
-![image](https://user-images.githubusercontent.com/52208431/172168615-267ae744-a654-4bfd-8940-77320f21a3f7.png)
+Learn more @ https://www.changeblock.com/

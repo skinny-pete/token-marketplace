@@ -43,8 +43,8 @@ contract ChangeblockMarketplace is Ownable {
     /// @notice Buyer whitelist.
     mapping(address => bool) public buyerApprovals;
 
-    mapping(uint256 => ERC20Listing) public ERC20listings;
-    mapping(uint256 => ERC721Listing) public ERC721listings;
+    mapping(uint256 => ERC20Listing) public ERC20Listings;
+    mapping(uint256 => ERC721Listing) public ERC721Listings;
 
     /// @notice Bids for each listing.
     /// @dev Maps listingId => bidId => Bid.
@@ -78,6 +78,7 @@ contract ChangeblockMarketplace is Ownable {
         address currency,
         uint256 listingId
     );
+
     /// @notice event for an ERC721 listing
     /// @param id the ERC721 ID of the NFT being sold (not listingId)
     /// @param price the price of the NFT
@@ -150,7 +151,7 @@ contract ChangeblockMarketplace is Ownable {
     // -------------------- PURCHASING METHODS --------------------
 
     function buyERC20(uint256 listingId, uint256 amount) public onlyBuyer {
-        ERC20Listing memory listing = ERC20listings[listingId];
+        ERC20Listing memory listing = ERC20Listings[listingId];
         require(listing.currency != address(0), 'invalid ID provided');
         uint256 payment = amount * listing.price;
         uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
@@ -162,12 +163,12 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         require(listing.amount >= amount, 'Insufficient listed tokens');
         IERC20(listing.product).transfer(msg.sender, amount);
-        ERC20listings[listingId].amount -= amount;
+        ERC20Listings[listingId].amount -= amount;
         emit Sale(listingId);
     }
 
     function buyERC721(uint256 listingId) public onlyBuyer {
-        ERC721Listing memory listing = ERC721listings[listingId];
+        ERC721Listing memory listing = ERC721Listings[listingId];
         require(listing.currency != address(0), 'invalid ID provided');
         uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
         IERC20(listing.currency).allowance(msg.sender, address(this));
@@ -195,10 +196,10 @@ contract ChangeblockMarketplace is Ownable {
     ) public onlySeller returns (uint256) {
         IERC20(product).transferFrom(msg.sender, address(this), amount);
         uint256 listingId = uint256(
-            keccak256(abi.encode(amount, price, msg.sender, product, currency))
+            keccak256(abi.encode(price, msg.sender, product, currency))
         );
-        ERC20listings[listingId] = ERC20Listing(
-            amount + ERC20listings[listingId].amount,
+        ERC20Listings[listingId] = ERC20Listing(
+            amount + ERC20Listings[listingId].amount,
             price,
             msg.sender,
             product,
@@ -226,7 +227,7 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId = uint256(
             keccak256(abi.encode(id, price, msg.sender, product, currency))
         );
-        ERC721listings[listingId] = ERC721Listing(
+        ERC721Listings[listingId] = ERC721Listing(
             id,
             price,
             msg.sender,
@@ -246,19 +247,19 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     function delistERC20(uint256 amount, uint256 listingId) public {
-        ERC20Listing memory listing = ERC20listings[listingId];
+        ERC20Listing memory listing = ERC20Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
             'Only vendor or marketplace owner can delist'
         );
         require(listing.amount >= amount, 'Insufficient tokens listed');
         IERC20(listing.product).transfer(listing.vendor, amount);
-        ERC20listings[listingId].amount -= amount;
+        ERC20Listings[listingId].amount -= amount;
         emit Removal(listingId);
     }
 
     function delistERC721(uint256 listingId) public {
-        ERC721Listing memory listing = ERC721listings[listingId];
+        ERC721Listing memory listing = ERC721Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
             'Only vendor or marketplace owner can delist'
@@ -296,19 +297,19 @@ contract ChangeblockMarketplace is Ownable {
     /// @param listingId The listing that the accepted bid was made for
     /// @param bidId The ID of the bid being accepted
     function acceptBid(uint256 listingId, uint256 bidId) public {
-        address vendor = ERC20listings[listingId].vendor;
+        address vendor = ERC20Listings[listingId].vendor;
         require(vendor == msg.sender, 'Only vendor can accept a bid');
         uint256 quantity = bids[listingId][bidId].quantity;
         require(
-            ERC20listings[listingId].amount >= quantity,
+            ERC20Listings[listingId].amount >= quantity,
             'Insufficient tokens listed to fulfill bid'
         );
-        IERC20(ERC20listings[listingId].currency).transfer(
+        IERC20(ERC20Listings[listingId].currency).transfer(
             vendor,
             bids[listingId][bidId].payment
         );
-        IERC20(ERC20listings[listingId].product).transfer(msg.sender, quantity);
-        ERC20listings[listingId].amount -= quantity;
+        IERC20(ERC20Listings[listingId].product).transfer(msg.sender, quantity);
+        ERC20Listings[listingId].amount -= quantity;
         _removeBid(listingId, bidId);
         delete bids[listingId][bidId];
     }
@@ -316,7 +317,7 @@ contract ChangeblockMarketplace is Ownable {
     function withdrawBid(uint256 listingId, uint256 bidId) public onlyBuyer {
         address bidder = bids[listingId][bidId].bidder;
         require(msg.sender == bidder, 'Only bidder can cancel a bid');
-        IERC20(ERC20listings[listingId].currency).transfer(
+        IERC20(ERC20Listings[listingId].currency).transfer(
             bidder,
             bids[listingId][bidId].payment
         );
