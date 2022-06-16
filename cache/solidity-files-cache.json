@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/theodale/Desktop/marketplace/contracts/ChangeblockMarketplace.sol": {
-      "lastModificationDate": 1655194895933,
-      "contentHash": "8f8b736abd658648855ad9503c8c684f",
+      "lastModificationDate": 1655200719357,
+      "contentHash": "72cd7f18e8b24cb86e1328ae0ee1e4f3",
       "sourceName": "contracts/ChangeblockMarketplace.sol",
       "solcConfig": {
         "version": "0.8.4",

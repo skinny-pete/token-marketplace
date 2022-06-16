@@ -50,6 +50,12 @@ contract ChangeblockMarketplace is Ownable {
     /// @dev Maps listingId => bidId => Bid.
     mapping(uint256 => mapping(uint256 => Bid)) bids;
 
+    // listing Id => list of bidIds
+    mapping(uint256 => uint256[]) public currentBids;
+
+    // listing Id => bidId => index
+    mapping(uint256 => mapping(uint256 => uint256)) bidIndexes;
+
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
 
@@ -281,6 +287,8 @@ contract ChangeblockMarketplace is Ownable {
             bids[listingId][bidId].payment == 0,
             'Bid of this type already made'
         );
+        bidIndexes[listingId][bidId] = currentBids[listingId].length;
+        currentBids[listingId].push(bidId);
         bids[listingId][bidId] = Bid(quantity, payment, msg.sender);
         emit BidPlaced(listingId, quantity, payment, msg.sender);
     }
@@ -301,6 +309,7 @@ contract ChangeblockMarketplace is Ownable {
         );
         IERC20(ERC20listings[listingId].product).transfer(msg.sender, quantity);
         ERC20listings[listingId].amount -= quantity;
+        _removeBid(listingId, bidId);
         delete bids[listingId][bidId];
     }
 
@@ -311,6 +320,7 @@ contract ChangeblockMarketplace is Ownable {
             bidder,
             bids[listingId][bidId].payment
         );
+        _removeBid(listingId, bidId);
         delete bids[listingId][bidId];
     }
 
@@ -340,4 +350,14 @@ contract ChangeblockMarketplace is Ownable {
     function setFeeNumerator() external onlyOwner {}
 
     function setFeeDenominator() external onlyOwner {}
+
+    // -------------------- INTERNAL --------------------
+
+    function _removeBid(uint256 listingId, uint256 bidId) internal {
+        currentBids[listingId][bidIndexes[listingId][bidId]] = currentBids[
+            listingId
+        ][currentBids[listingId].length - 1];
+        currentBids[listingId].pop();
+        delete bidIndexes[listingId][bidId]; // is this necessary?
+    }
 }
