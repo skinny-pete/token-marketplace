@@ -79,6 +79,8 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
+    event ERC20PriceUpdate(uint256 indexed listingId, uint256 price);
+
     /// @notice event for an ERC721 listing
     /// @param id the ERC721 ID of the NFT being sold (not listingId)
     /// @param price the price of the NFT
@@ -112,9 +114,9 @@ contract ChangeblockMarketplace is Ownable {
     /// @param bidder the address of the account withdrawing the bid
     event BidWithdrawn(uint256 indexed listingId, address bidder);
 
-    /// @notice event for the removal of a listing
-    /// @param listingId the ID of the listing removed
-    event Removal(uint256 indexed listingId);
+    // /// @notice event for the removal of a listing
+    // /// @param listingId the ID of the listing removed
+    // event Removal(uint256 indexed listingId);
 
     /// @notice event emitted when a sale is completed
     /// @param listingId ID of the listing
@@ -122,22 +124,24 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- MODIFIERS --------------------
 
+    // Modifier to only permit function calls from approved buyers
     modifier onlyBuyer() {
         require(buyerApprovals[msg.sender], 'Approved buyers only');
         _;
     }
 
+    // Modifier to only permit function calls from approved sellers
     modifier onlySeller() {
         require(sellerApprovals[msg.sender], 'Approved sellers only');
         _;
     }
 
-    ///@notice Contract constructor.
-    ///@dev Sale fee is calculated by feeNumerator/feeDenominator.
-    ///@param feeNumerator Numerator for fee calculation.
-    ///@param feeDenominator Denominator for fee calculation.
-    ///@param treasury Address to send fees to.
-    ///@dev Warning: no checks are performed on the treasury address - make sure you have the private key for this account!
+    /// @notice Contract constructor.
+    /// @dev Sale fee is calculated by feeNumerator/feeDenominator.
+    /// @param feeNumerator Numerator for fee calculation.
+    /// @param feeDenominator Denominator for fee calculation.
+    /// @param treasury Address to send fees to.
+    /// @dev Warning: no checks are performed on the treasury address - make sure you have the private key for this account!
     constructor(
         uint256 feeNumerator,
         uint256 feeDenominator,
@@ -149,6 +153,8 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     // -------------------- PURCHASING METHODS --------------------
+
+    // Add price parameter to alll buy functions
 
     function buyERC20(uint256 listingId, uint256 amount) public onlyBuyer {
         ERC20Listing memory listing = ERC20Listings[listingId];
@@ -188,15 +194,16 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- LISTING METHODS --------------------
 
+    /// @dev Listed token price is set to `price` parameter
     function listERC20(
         uint256 amount,
         uint256 price,
         address product,
         address currency
     ) public onlySeller returns (uint256) {
-        IERC20(product).transferFrom(msg.sender, address(this), amount);
+        IERC20(product).transferFrom(msg.sender, address(this), amount); // does this need a require check?
         uint256 listingId = uint256(
-            keccak256(abi.encode(price, msg.sender, product, currency))
+            keccak256(abi.encode(msg.sender, product, currency))
         );
         ERC20Listings[listingId] = ERC20Listing(
             amount + ERC20Listings[listingId].amount,
@@ -223,10 +230,8 @@ contract ChangeblockMarketplace is Ownable {
         address product,
         address currency
     ) public onlySeller returns (uint256) {
-        IERC721(product).transferFrom(msg.sender, address(this), id);
-        uint256 listingId = uint256(
-            keccak256(abi.encode(id, price, msg.sender, product, currency))
-        );
+        IERC721(product).transferFrom(msg.sender, address(this), id); // does this need a require check?
+        uint256 listingId = uint256(keccak256(abi.encode(id, product)));
         ERC721Listings[listingId] = ERC721Listing(
             id,
             price,
@@ -246,6 +251,7 @@ contract ChangeblockMarketplace is Ownable {
         return listingId;
     }
 
+    // This method needs events
     function delistERC20(uint256 amount, uint256 listingId) public {
         ERC20Listing memory listing = ERC20Listings[listingId];
         require(
@@ -254,10 +260,14 @@ contract ChangeblockMarketplace is Ownable {
         );
         require(listing.amount >= amount, 'Insufficient tokens listed');
         IERC20(listing.product).transfer(listing.vendor, amount);
-        ERC20Listings[listingId].amount -= amount;
-        emit Removal(listingId);
+        if (listing.amount == amount) {
+            delete ERC20Listings[listingId];
+        } else {
+            ERC20Listings[listingId].amount -= amount;
+        }
     }
 
+    // This method needs events
     function delistERC721(uint256 listingId) public {
         ERC721Listing memory listing = ERC721Listings[listingId];
         require(
@@ -269,7 +279,7 @@ contract ChangeblockMarketplace is Ownable {
             listing.vendor,
             listing.id
         );
-        emit Removal(listingId);
+        delete ERC721Listings[listingId];
     }
 
     // -------------------- BIDDING --------------------
@@ -327,8 +337,26 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- ADMIN --------------------
 
+    // WHAT OTHER ADMIN EFFECTS COULD WE NEED? e.g. pauseable, only permitting certain tokens...
+
     // if we have this, we need to have an max price in the buy function
-    function updatePrice() external {}
+    function updateERC20Price(uint256 listingId, uint256 price) external {
+        require(
+            msg.sender == ERC20Listings[listingId].vendor,
+            'Only vendor can update price'
+        );
+        ERC20Listings[listingId].price = price;
+        // EVENT
+    }
+
+    function updateERC721Price(uint256 listingId, uint256 price) external {
+        require(
+            msg.sender == ERC721Listings[listingId].vendor,
+            'Only vendor can update price'
+        );
+        ERC721Listings[listingId].price = price;
+        // EVENT
+    }
 
     function setSellers(address[] calldata targets, bool[] calldata approvals)
         public

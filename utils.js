@@ -3,11 +3,21 @@
 // For use in tests and scripts
 
 // Get ID for either an ERC20 listing
-const getERC20ListingId = (price, seller, sellToken, buyToken) => {
+const getERC20ListingId = (seller, sellToken, buyToken) => {
   return ethers.utils.keccak256(
     ethers.utils.defaultAbiCoder.encode(
-      ['uint256', 'address', 'address', 'address'],
-      [price, seller.address, sellToken.address, buyToken.address]
+      ['address', 'address', 'address'],
+      [seller.address, sellToken.address, buyToken.address]
+    )
+  );
+};
+
+// Get ID for either an ERC721 listing
+const getERC721ListingId = (tokenId, sellToken) => {
+  return ethers.utils.keccak256(
+    ethers.utils.defaultAbiCoder.encode(
+      ['uint256', 'address'],
+      [tokenId, sellToken.address]
     )
   );
 };
@@ -32,7 +42,7 @@ const getFee = (amount, feeNumerator, feeDenominator) => {
 };
 
 // Mint, approve, then list some tokens
-const setupListing = async (
+const setupERC20Listing = async (
   lister,
   marketplace,
   token,
@@ -45,15 +55,31 @@ const setupListing = async (
   await marketplace
     .connect(lister)
     .listERC20(amount, price, token.address, currency.address);
-  return ethers.BigNumber.from(
-    getERC20ListingId(price, lister, token, currency)
-  );
+  return getERC20ListingId(lister, token, currency);
+};
+
+const setupERC721Listing = async (
+  lister,
+  marketplace,
+  tokenId,
+  token,
+  price,
+  currency
+) => {
+  await mintAndApproveERC721(token, tokenId, lister, marketplace);
+  await marketplace.setSellers([lister.address], [true]);
+  await marketplace
+    .connect(lister)
+    .listERC721(tokenId, price, token.address, currency.address);
+  return getERC721ListingId(tokenId, token);
 };
 
 module.exports = {
   getERC20ListingId,
+  getERC721ListingId,
   mintAndApproveERC20,
   mintAndApproveERC721,
   getFee,
-  setupListing,
+  setupERC20Listing,
+  setupERC721Listing,
 };

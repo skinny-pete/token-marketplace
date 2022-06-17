@@ -1,4 +1,11 @@
-check for ID collisions
-what needs to be indexed in events
+combine ERC20/ERC721 events, methods, structs etc if poss for code neatness
 
-encode vs encodePacked for ID generation
+Split up events and make more concise:
+
+- initial registration
+- price update
+- further tokens added to a listing
+
+Also decide what needs to be indexed in events
+
+What return statements are needed? For calls from other contracts
