@@ -79,7 +79,7 @@ module.exports = {
   getERC721ListingId,
   mintAndApproveERC20,
   mintAndApproveERC721,
-  getFee,
   setupERC20Listing,
   setupERC721Listing,
+  getFee,
 };

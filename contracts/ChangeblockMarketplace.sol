@@ -156,9 +156,17 @@ contract ChangeblockMarketplace is Ownable {
 
     // Add price parameter to alll buy functions
 
-    function buyERC20(uint256 listingId, uint256 amount) public onlyBuyer {
+    function buyERC20(
+        uint256 listingId,
+        uint256 amount,
+        uint256 price
+    ) public onlyBuyer {
         ERC20Listing memory listing = ERC20Listings[listingId];
-        require(listing.currency != address(0), 'invalid ID provided');
+        require(
+            listing.currency != address(0),
+            'Non-valid listing ID provided'
+        );
+        require(listing.price == price, 'Cannot make purchase at input price');
         uint256 payment = amount * listing.price;
         uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
         IERC20(listing.currency).transferFrom(
@@ -173,11 +181,15 @@ contract ChangeblockMarketplace is Ownable {
         emit Sale(listingId);
     }
 
-    function buyERC721(uint256 listingId) public onlyBuyer {
+    function buyERC721(uint256 listingId, uint256 price) public onlyBuyer {
         ERC721Listing memory listing = ERC721Listings[listingId];
-        require(listing.currency != address(0), 'invalid ID provided');
+        require(
+            listing.currency != address(0),
+            'Non-valid listing ID provided'
+        );
+        require(listing.price == price, 'Cannot make purchase at input price');
         uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
-        IERC20(listing.currency).allowance(msg.sender, address(this));
+        // IERC20(listing.currency).allowance(msg.sender, address(this));
         IERC20(listing.currency).transferFrom(
             msg.sender,
             listing.vendor,

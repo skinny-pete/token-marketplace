@@ -1,408 +1,179 @@
-// const { expect } = require('chai');
-// const { ethers } = require('hardhat');
-// const {
-//   getListingId,
-//   mintAndApproveERC20,
-//   mintAndApproveERC721,
-// } = require('../utils.js');
+const { expect } = require('chai');
+const { ethers } = require('hardhat');
+const {
+  getERC20ListingId,
+  getERC721ListingId,
+  mintAndApproveERC20,
+  mintAndApproveERC721,
+  setupERC20Listing,
+  setupERC721Listing,
+  getFee,
+} = require('../utils.js');
 
-// describe('Listing and Buying', function () {
-//   let deployer, buyer, treasury; // Signers
-//   let marketplaceFactory, mintableERC20Factory, mintableERC721Factory; // Contract factories
-//   let stableCoin, ecoToken, ecoNFT; // Token contracts
-//   let marketplace; // Marketplace contract
+describe('Buying', () => {
+  let deployer, notDeployer, treasury; // Signers
+  let marketplaceFactory, mintableERC20Factory, mintableERC721Factory; // Contract factories
+  let stableCoin, ecoToken, ecoNFT; // Token contracts
+  let marketplace; // Marketplace contract
 
-//   before(async () => {
-//     [deployer, buyer, treasury] = await ethers.getSigners();
-//     marketplaceFactory = await ethers.getContractFactory(
-//       'ChangeblockMarketplace'
-//     );
-//     mintableERC20Factory = await ethers.getContractFactory('MintableERC20');
-//     mintableERC721Factory = await ethers.getContractFactory('MintableERC721');
-//   });
+  before(async () => {
+    [deployer, notDeployer, treasury] = await ethers.getSigners();
+    marketplaceFactory = await ethers.getContractFactory(
+      'ChangeblockMarketplace'
+    );
+    mintableERC20Factory = await ethers.getContractFactory('MintableERC20');
+    mintableERC721Factory = await ethers.getContractFactory('MintableERC721');
+  });
 
-//   const feeNumerator = ethers.BigNumber.from('500000');
-//   const feeDenominator = ethers.BigNumber.from('10000000');
+  const feeNumerator = ethers.BigNumber.from('500000');
+  const feeDenominator = ethers.BigNumber.from('10000000');
 
-//   beforeEach(async () => {
-//     marketplace = await marketplaceFactory.deploy(
-//       feeNumerator,
-//       feeDenominator,
-//       treasury.address
-//     );
-//     stableCoin = await mintableERC20Factory.deploy('Stable Coin', 'SC');
-//     ecoToken = await mintableERC20Factory.deploy('Eco Token', 'ET');
-//     ecoNFT = await mintableERC721Factory.deploy('Eco NFT', 'ENFT');
-//   });
+  beforeEach(async () => {
+    marketplace = await marketplaceFactory.deploy(
+      ethers.BigNumber.from('500000'),
+      ethers.BigNumber.from('10000000'),
+      treasury.address
+    );
+    stableCoin = await mintableERC20Factory.deploy('Stable Coin', 'SC');
+    ecoNFT = await mintableERC721Factory.deploy('Eco NFT', 'ENFT');
+  });
 
-//   it('Set approval', async () => {
-//     await marketplace.setSellers([buyer.address], [true]);
-//     expect(await marketplace.sellerApprovals(buyer.address)).to.equal(true);
-//   });
+  describe('ERC20s', () => {
+    let listingId; // ID for listing of ERC20s
 
-//   const amount = ethers.utils.parseEther('250');
-//   const ecoTokenPrice = ethers.BigNumber.from('2');
+    const listedAmount = ethers.utils.parseEther('250');
+    const listingPrice = ethers.BigNumber.from('3');
 
-//   // ------------------- ERC20s -------------------
+    beforeEach(async () => {
+      ecoToken = await mintableERC20Factory.deploy('Eco Token', 'ET');
+      listingId = await setupERC20Listing(
+        deployer,
+        marketplace,
+        ecoToken,
+        listedAmount,
+        listingPrice,
+        stableCoin
+      );
+      await mintAndApproveERC20(
+        stableCoin,
+        ethers.utils.parseEther('10000'),
+        notDeployer,
+        marketplace
+      );
+      await marketplace.setBuyers([notDeployer.address], [true]);
+    });
 
-//   it('List ERC20 tokens', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
-//     expect(
-//       await marketplace.listERC20(
-//         amount,
-//         ecoTokenPrice,
-//         ecoToken.address,
-//         stableCoin.address
-//       )
-//     )
-//       .to.emit(marketplace, 'ERC20Registration')
-//       .withArgs(
-//         amount,
-//         ecoTokenPrice,
-//         deployer.address,
-//         ecoToken.address,
-//         stableCoin.address,
-//         listingId
-//       );
-//   });
+    const buyAmount = ethers.utils.parseEther('100');
 
-//   it('Buy ERC20 tokens', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
-//     const basePayment = ecoTokenPrice.mul(amount);
-//     const fee = basePayment.mul(feeNumerator).div(feeDenominator);
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       basePayment.add(fee),
-//       buyer,
-//       marketplace
-//     );
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
-//     await marketplace.setBuyers([buyer.address], [true]);
-//     expect(await marketplace.connect(buyer).buyERC20(listingId, amount))
-//       .to.emit(marketplace, 'Sale')
-//       .withArgs(listingId);
-//     expect(await stableCoin.balanceOf(deployer.address)).to.equal(
-//       ecoTokenPrice.mul(amount)
-//     );
-//     expect(await ecoToken.balanceOf(buyer.address)).to.equal(amount);
-//   });
+    it('Correct post buy state', async () => {
+      await marketplace
+        .connect(notDeployer)
+        .buyERC20(listingId, buyAmount, listingPrice);
+      expect(await stableCoin.balanceOf(deployer.address)).to.equal(
+        buyAmount.mul(listingPrice)
+      );
+      expect(await stableCoin.balanceOf(treasury.address)).to.equal(
+        buyAmount.mul(listingPrice).mul(feeNumerator).div(feeDenominator)
+      );
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(buyAmount);
+      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(
+        listedAmount.sub(buyAmount)
+      );
+      const ERC20Listing = await marketplace.ERC20Listings(listingId);
+      expect(ERC20Listing.amount).to.equal(listedAmount.sub(buyAmount));
+    });
 
-//   // ------------------- ERC721s -------------------
+    it('Emits `` event ', async () => {
+      // need event
+    });
 
-//   const ecoNFTId = ethers.BigNumber.from('0');
-//   const ecoNFTPrice = ethers.utils.parseEther('250');
+    it('Rejects if non-approved buyer', async () => {
+      await marketplace.setBuyers([notDeployer.address], [false]);
+      await expect(
+        marketplace
+          .connect(notDeployer)
+          .buyERC20(listingId, buyAmount, listingPrice)
+      ).to.be.revertedWith('Approved buyers only');
+    });
 
-//   it('List an ERC721 token', async () => {
-//     await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     const listingId = getListingId(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       deployer,
-//       ecoNFT,
-//       stableCoin
-//     );
-//     expect(
-//       await marketplace.listERC721(
-//         ecoNFTId,
-//         ecoNFTPrice,
-//         ecoNFT.address,
-//         stableCoin.address
-//       )
-//     )
-//       .to.emit(marketplace, 'ERC721Registration')
-//       .withArgs(
-//         ecoNFTId,
-//         ecoNFTPrice,
-//         deployer.address,
-//         ecoNFT.address,
-//         stableCoin.address,
-//         listingId
-//       );
-//   });
+    it('Rejects for an attempt to buy excess tokens', async () => {
+      await expect(
+        marketplace
+          .connect(notDeployer)
+          .buyERC20(listingId, listedAmount.mul(2), listingPrice)
+      ).to.be.revertedWith('Insufficient listed tokens');
+    });
 
-//   it('Buy an ERC721 token', async () => {
-//     await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC721(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       ecoNFT.address,
-//       stableCoin.address
-//     );
-//     const listingId = getListingId(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       deployer,
-//       ecoNFT,
-//       stableCoin
-//     );
-//     const fee = ecoNFTPrice.mul(feeNumerator).div(feeDenominator);
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       ecoNFTPrice.add(fee),
-//       buyer,
-//       marketplace
-//     );
-//     await marketplace.setBuyers([buyer.address], [true]);
-//     expect(await marketplace.connect(buyer).buyERC721(listingId))
-//       .to.emit(marketplace, 'Sale')
-//       .withArgs(listingId);
-//     expect(await stableCoin.balanceOf(deployer.address)).to.equal(ecoNFTPrice);
-//     expect(await ecoNFT.ownerOf(ecoNFTId)).to.equal(buyer.address);
-//   });
+    it('Rejects if non-current price passed as input', async () => {
+      await expect(
+        marketplace
+          .connect(notDeployer)
+          .buyERC20(listingId, buyAmount, listingPrice.mul('2'))
+      ).to.be.revertedWith('Cannot make purchase at input price');
+    });
 
-//   it('Reverts if invalid ID supplied', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
-//     await marketplace.setBuyers([buyer.address], [true]);
-//     let invalidID = getListingId(
-//       ethers.utils.parseEther('10'),
-//       amount,
-//       deployer,
-//       stableCoin,
-//       ecoToken
-//     );
-//     mintAndApproveERC20(
-//       stableCoin,
-//       amount.mul(ecoTokenPrice),
-//       buyer,
-//       marketplace
-//     );
-//     await expect(
-//       marketplace.connect(buyer).buyERC20(invalidID, amount)
-//     ).to.be.revertedWith('invalid ID provided');
-//   });
+    it('Reverts if non-valid listing ID supplied', async () => {
+      const fakeId = getERC20ListingId(notDeployer, ecoToken, stableCoin); // wrong seller
+      await expect(
+        marketplace
+          .connect(notDeployer)
+          .buyERC20(fakeId, buyAmount, listingPrice.mul('2'))
+      ).to.be.revertedWith('Non-valid listing ID provided');
+    });
+  });
 
-//   it('Reverts if user buys listing with insufficient stock', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
-//     const tooMuch = ethers.utils.parseEther('255');
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       ethers.utils.parseEther('1000000000'),
-//       buyer,
-//       marketplace
-//     );
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
-//     await marketplace.setBuyers([buyer.address], [true]);
-//     await expect(
-//       marketplace.connect(buyer).buyERC20(listingId, tooMuch)
-//     ).to.be.revertedWith('Insufficient listed tokens');
-//   });
+  describe('ERC721s', () => {
+    let listingId; // ID for listed ERC721
 
-//   it('Allows lister to delist ERC20', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
+    const ecoNFTId = ethers.BigNumber.from('0');
+    const listingPrice = ethers.utils.parseEther('10');
 
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
+    beforeEach(async () => {
+      listingId = setupERC721Listing(
+        deployer,
+        marketplace,
+        ecoNFTId,
+        ecoNFT,
+        listingPrice,
+        stableCoin
+      );
+      await mintAndApproveERC20(
+        stableCoin,
+        ethers.utils.parseEther('10000'),
+        notDeployer,
+        marketplace
+      );
+      await marketplace.setBuyers([notDeployer.address], [true]);
+    });
 
-//     const toDelist = ethers.utils.parseEther('125');
-//     await expect(marketplace.connect(deployer).delistERC20(toDelist, listingId))
-//       .to.emit(marketplace, 'Removal')
-//       .withArgs(listingId);
+    it('Correct post buy state', async () => {
+      await marketplace.connect(notDeployer).buyERC721(listingId, listingPrice);
+      expect(await stableCoin.balanceOf(deployer.address)).to.equal(
+        listingPrice
+      );
+      expect(await stableCoin.balanceOf(treasury.address)).to.equal(
+        listingPrice.mul(feeNumerator).div(feeDenominator)
+      );
+      expect(await ecoNFT.ownerOf(ecoNFTId)).to.equal(notDeployer.address);
+    });
 
-//     expect((await marketplace.ERC20listings(listingId)).amount).to.equal(
-//       amount.sub(toDelist)
-//     );
+    it('Emits `` event ', async () => {
+      // need event
+    });
 
-//     expect(await ecoToken.balanceOf(deployer.address)).to.equal(toDelist);
-//   });
+    it('Rejects if non-current price passed as input', async () => {
+      await expect(
+        marketplace
+          .connect(notDeployer)
+          .buyERC721(listingId, listingPrice.mul(2))
+      ).to.be.revertedWith('Cannot make purchase at input price');
+    });
 
-//   it('Collects correct fees', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
-//     const basePayment = ecoTokenPrice.mul(amount);
-//     const fee = basePayment.mul(feeNumerator).div(feeDenominator);
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       basePayment.add(fee),
-//       buyer,
-//       marketplace
-//     );
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
-//     await marketplace.setBuyers([buyer.address], [true]);
-//     await marketplace.connect(buyer).buyERC20(listingId, amount);
-
-//     expect(await stableCoin.balanceOf(treasury.address)).to.equal(fee);
-//   });
-
-//   it('Prevents unapproved user from buying ERC20', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC20(
-//       amount,
-//       ecoTokenPrice,
-//       ecoToken.address,
-//       stableCoin.address
-//     );
-//     const basePayment = ecoTokenPrice.mul(amount);
-//     const fee = basePayment.mul(feeNumerator).div(feeDenominator);
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       basePayment.add(fee),
-//       buyer,
-//       marketplace
-//     );
-//     const listingId = getListingId(
-//       amount,
-//       ecoTokenPrice,
-//       deployer,
-//       ecoToken,
-//       stableCoin
-//     );
-//     await expect(
-//       marketplace.connect(buyer).buyERC20(listingId, amount)
-//     ).to.be.revertedWith('Approved buyers only');
-//   });
-
-//   it('Prevents unapproved user from buying ERC721s', async () => {
-//     await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
-//     await marketplace.setSellers([deployer.address], [true]);
-//     await marketplace.listERC721(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       ecoNFT.address,
-//       stableCoin.address
-//     );
-//     const listingId = getListingId(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       deployer,
-//       ecoNFT,
-//       stableCoin
-//     );
-//     const fee = ecoNFTPrice.mul(feeNumerator).div(feeDenominator);
-//     await mintAndApproveERC20(
-//       stableCoin,
-//       ecoNFTPrice.add(fee),
-//       buyer,
-//       marketplace
-//     );
-//     await expect(
-//       marketplace.connect(buyer).buyERC721(listingId)
-//     ).to.be.revertedWith('Approved buyers only');
-//   });
-
-//   it('Prevents an unapproved seller from listing ERC20', async () => {
-//     await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//     await expect(
-//       marketplace.listERC20(
-//         amount,
-//         ecoTokenPrice,
-//         ecoToken.address,
-//         stableCoin.address
-//       )
-//     ).to.be.revertedWith('Approved sellers only');
-//   });
-
-//   it('Prevents unapproved seller from listing ERC721', async () => {
-//     await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
-//     const listingId = getListingId(
-//       ecoNFTId,
-//       ecoNFTPrice,
-//       deployer,
-//       ecoNFT,
-//       stableCoin
-//     );
-//     await expect(
-//       marketplace.listERC721(
-//         ecoNFTId,
-//         ecoNFTPrice,
-//         ecoNFT.address,
-//         stableCoin.address
-//       )
-//     ).to.be.revertedWith('Approved sellers only');
-//   });
-// });
-
-// it('Reverts if invalid ID supplied', async () => {
-//   await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
-//   await marketplace.setSellers([deployer.address], [true]);
-//   await marketplace.listERC20(
-//     amount,
-//     ecoTokenPrice,
-//     ecoToken.address,
-//     stableCoin.address
-//   );
-//   await marketplace.setBuyers([buyer.address], [true]);
-//   let invalidID = getListingId(
-//     ethers.utils.parseEther('10'),
-//     amount,
-//     deployer,
-//     stableCoin,
-//     ecoToken
-//   );
-//   mintAndApproveERC20(
-//     stableCoin,
-//     amount.mul(ecoTokenPrice),
-//     buyer,
-//     marketplace
-//   );
-//   await expect(
-//     marketplace.connect(buyer).buyERC20(invalidID, amount)
-//   ).to.be.revertedWith('invalid ID provided');
-// });
+    it('Reverts if non-valid listing ID supplied', async () => {
+      const fakeId = getERC721ListingId(ecoNFTId.add(1), ecoNFT); // wrong seller
+      await expect(
+        marketplace.connect(notDeployer).buyERC721(fakeId, listingPrice)
+      ).to.be.revertedWith('Non-valid listing ID provided');
+    });
+  });
+});
