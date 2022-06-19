@@ -29,12 +29,6 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
-    struct Bid {
-        uint256 quantity;
-        uint256 payment;
-        address bidder;
-    }
-
     // -------------------- STATE VARIABLES --------------------
 
     /// @notice Seller whitelist.
@@ -46,15 +40,15 @@ contract ChangeblockMarketplace is Ownable {
     mapping(uint256 => ERC20Listing) public ERC20Listings;
     mapping(uint256 => ERC721Listing) public ERC721Listings;
 
-    /// @notice Bids for each listing.
-    /// @dev Maps listingId => bidId => Bid.
-    mapping(uint256 => mapping(uint256 => Bid)) bids;
+    // /// @notice Bids for each listing.
+    // /// @dev Maps listingId => bidId => Bid.
+    // mapping(uint256 => mapping(uint256 => Bid)) public bids;
 
-    // listing Id => list of bidIds
-    mapping(uint256 => uint256[]) public currentBids;
+    // // listing Id => list of bidIds
+    // mapping(uint256 => uint256[]) publicbidders;
 
-    // listing Id => bidId => index
-    mapping(uint256 => mapping(uint256 => uint256)) bidIndexes;
+    // // listing Id => bidId => index
+    // mapping(uint256 => mapping(uint256 => uint256)) bidIndexes;
 
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
@@ -296,6 +290,21 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- BIDDING --------------------
 
+    struct Bid {
+        uint256 quantity;
+        uint256 payment;
+    }
+
+    /// @notice Bids for each listing.
+    /// @dev Maps listingId => bidder => Bid.
+    mapping(uint256 => mapping(address => Bid)) public bids;
+
+    // listing Id => list of its bidders
+    mapping(uint256 => address[]) public bidders;
+
+    // listing Id => bidder => index
+    mapping(uint256 => mapping(address => uint256)) bidderIndexes;
+
     /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
     /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
     function bid(
@@ -303,49 +312,49 @@ contract ChangeblockMarketplace is Ownable {
         uint256 quantity,
         uint256 payment
     ) public onlyBuyer {
-        uint256 bidId = uint256(
-            keccak256(abi.encode(quantity, payment, msg.sender))
-        );
-        require(
-            bids[listingId][bidId].payment == 0,
-            'Bid of this type already made'
-        );
-        bidIndexes[listingId][bidId] = currentBids[listingId].length;
-        currentBids[listingId].push(bidId);
-        bids[listingId][bidId] = Bid(quantity, payment, msg.sender);
+        bidderIndexes[listingId][msg.sender] = bidders[listingId].length;
+        bidders[listingId].push(msg.sender);
+        bids[listingId][msg.sender] = Bid(quantity, payment);
         emit BidPlaced(listingId, quantity, payment, msg.sender);
     }
 
-    /// @param listingId The listing that the accepted bid was made for
-    /// @param bidId The ID of the bid being accepted
-    function acceptBid(uint256 listingId, uint256 bidId) public {
-        address vendor = ERC20Listings[listingId].vendor;
-        require(vendor == msg.sender, 'Only vendor can accept a bid');
-        uint256 quantity = bids[listingId][bidId].quantity;
-        require(
-            ERC20Listings[listingId].amount >= quantity,
-            'Insufficient tokens listed to fulfill bid'
-        );
-        IERC20(ERC20Listings[listingId].currency).transfer(
-            vendor,
-            bids[listingId][bidId].payment
-        );
-        IERC20(ERC20Listings[listingId].product).transfer(msg.sender, quantity);
-        ERC20Listings[listingId].amount -= quantity;
-        _removeBid(listingId, bidId);
-        delete bids[listingId][bidId];
-    }
+    // fee on bid herer needed
 
-    function withdrawBid(uint256 listingId, uint256 bidId) public onlyBuyer {
-        address bidder = bids[listingId][bidId].bidder;
-        require(msg.sender == bidder, 'Only bidder can cancel a bid');
-        IERC20(ERC20Listings[listingId].currency).transfer(
-            bidder,
-            bids[listingId][bidId].payment
-        );
-        _removeBid(listingId, bidId);
-        delete bids[listingId][bidId];
-    }
+    // /// @param listingId The listing that the accepted bid was made for
+    // /// @param bidId The ID of the bid being accepted
+    // // only accept at a given price
+    // function acceptBid(
+    //     uint256 listingId,
+    //     uint256 bidId,
+    //     uint256 price
+    // ) public {
+    //     address vendor = ERC20Listings[listingId].vendor;
+    //     require(vendor == msg.sender, 'Only vendor can accept a bid');
+    //     uint256 quantity = bids[listingId][bidId].quantity;
+    //     require(
+    //         ERC20Listings[listingId].amount >= quantity,
+    //         'Insufficient tokens listed to fulfill bid'
+    //     );
+    //     IERC20(ERC20Listings[listingId].currency).transfer(
+    //         vendor,
+    //         bids[listingId][bidId].payment
+    //     );
+    //     IERC20(ERC20Listings[listingId].product).transfer(msg.sender, quantity);
+    //     ERC20Listings[listingId].amount -= quantity;
+    //     _removeBid(listingId, bidId);
+    //     delete bids[listingId][bidId];
+    // }
+
+    // function withdrawBid(uint256 listingId, uint256 bidId) public onlyBuyer {
+    //     address bidder = bids[listingId][bidId].bidder;
+    //     require(msg.sender == bidder, 'Only bidder can cancel a bid');
+    //     IERC20(ERC20Listings[listingId].currency).transfer(
+    //         bidder,
+    //         bids[listingId][bidId].payment
+    //     );
+    //     _removeBid(listingId, bidId);
+    //     delete bids[listingId][bidId];
+    // }
 
     // -------------------- ADMIN --------------------
 
@@ -394,11 +403,11 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- INTERNAL --------------------
 
-    function _removeBid(uint256 listingId, uint256 bidId) internal {
-        currentBids[listingId][bidIndexes[listingId][bidId]] = currentBids[
-            listingId
-        ][currentBids[listingId].length - 1];
-        currentBids[listingId].pop();
-        delete bidIndexes[listingId][bidId]; // is this necessary?
-    }
+    // function _removeBid(uint256 listingId, uint256 bidId) internal {
+    //     bidders[listingId][bidIndexes[listingId][bidId]] = bidders[listingId][
+    //         currentBids[listingId].length - 1
+    //     ];
+    //     bidders[listingId].pop();
+    //     delete bidIndexes[listingId][bidId]; // is this necessary?
+    // }
 }

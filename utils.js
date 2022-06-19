@@ -22,6 +22,16 @@ const getERC721ListingId = (tokenId, sellToken) => {
   );
 };
 
+// Get ID for either an ERC721 listing
+const getBidId = (tokenId, sellToken) => {
+  return ethers.utils.keccak256(
+    ethers.utils.defaultAbiCoder.encode(
+      ['uint256', 'address'],
+      [tokenId, sellToken.address]
+    )
+  );
+};
+
 // Mint and approve an amount of ERC20 tokens
 const mintAndApproveERC20 = async (ERC20, amount, approver, approved) => {
   return ERC20.mint(approver.address, amount).then(() => {
@@ -82,4 +92,5 @@ module.exports = {
   setupERC20Listing,
   setupERC721Listing,
   getFee,
+  getBidId,
 };
