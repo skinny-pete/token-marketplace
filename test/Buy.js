@@ -75,8 +75,10 @@ describe('Buying', () => {
       expect(ERC20Listing.amount).to.equal(listedAmount.sub(buyAmount));
     });
 
-    it('Emits `` event ', async () => {
-      // need event
+    it('Emits ERC20Sale event ', async () => {
+      await expect(marketplace.connect(notDeployer).buyERC20(listingId, buyAmount, listingPrice))
+        .to.emit(marketplace, 'ERC20Sale')
+        .withArgs(listingId, buyAmount, listingPrice, notDeployer.address);
     });
 
     it('Rejects if non-approved buyer', async () => {
@@ -114,7 +116,7 @@ describe('Buying', () => {
     const listingPrice = ethers.utils.parseEther('10');
 
     beforeEach(async () => {
-      listingId = setupERC721Listing(
+      listingId = await setupERC721Listing(
         deployer,
         marketplace,
         ecoNFTId,
@@ -140,8 +142,10 @@ describe('Buying', () => {
       expect(await ecoNFT.ownerOf(ecoNFTId)).to.equal(notDeployer.address);
     });
 
-    it('Emits `` event ', async () => {
-      // need event
+    it('Emits ERC721Sale event ', async () => {
+      await expect(marketplace.connect(notDeployer).buyERC721(listingId, listingPrice))
+        .to.emit(marketplace, 'ERC721Sale')
+        .withArgs(listingId, listingPrice, notDeployer.address);
     });
 
     it('Rejects if non-current price passed as input', async () => {
