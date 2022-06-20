@@ -124,6 +124,11 @@ describe('Bidding', () => {
     expect(await currency.balanceOf(marketplace.address)).to.equal(payment.add(payment.mul(5)));
     expect(await currency.balanceOf(notDeployer.address)).to.equal(balance.sub(payment.mul(6)));
   });
+
+  // it('Withdraw a bidders bid from multiple', async () => {
+  //   await marketplace.connect(notDeployer).bid(listingId, quantity, payment);
+  //   await marketplace.connect(notDeployer).withdrawBid(listingId, 0);
+  // });
 });
 
 // npx hardhat test test/Bid.js

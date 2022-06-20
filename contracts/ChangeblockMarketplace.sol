@@ -13,6 +13,7 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 contract ChangeblockMarketplace is Ownable {
     // -------------------- STRUCTS --------------------
 
+    // Represents one or more ERC20 tokens listed for-sale.
     struct ERC20Listing {
         uint256 amount;
         uint256 price;
@@ -21,6 +22,7 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
+    // Represents an ERC721 listed for sale.
     struct ERC721Listing {
         uint256 id;
         uint256 price;
@@ -29,6 +31,7 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
+    // Represents a bid made for a quantity of listed ERC20 tokens.
     struct Bid {
         uint256 quantity;
         uint256 payment;
@@ -42,11 +45,16 @@ contract ChangeblockMarketplace is Ownable {
     /// @notice Buyer whitelist.
     mapping(address => bool) public buyerApprovals;
 
+    /// @notice The ERC20 listings made on this marketplace.
+    /// @dev Maps listingId to an ERC20Listing struct.
     mapping(uint256 => ERC20Listing) public ERC20Listings;
+
+    /// @notice The ERC721 listings made on this marketplace.
+    /// @dev Maps listingId to an ERC721Listing struct.
     mapping(uint256 => ERC721Listing) public ERC721Listings;
 
-    /// @notice Bidders bids for each listing.
-    /// @dev Maps listingId => bidder => bids on listing.
+    /// @notice The bids a bidder has made for each listing.
+    /// @dev Maps listingId => bidder => their bids on listing.
     mapping(uint256 => mapping(address => Bid[])) public bids;
 
     uint256 public FEE_NUMERATOR;
@@ -88,7 +96,7 @@ contract ChangeblockMarketplace is Ownable {
 
     event BidAccepted(uint256 indexed listingId, address bidder, uint256 quantity, uint256 payment);
 
-    // event Removal(uint256 indexed listingId);
+    event Removal(uint256 indexed listingId);
 
     event Sale(uint256 indexed listingId);
 
@@ -107,11 +115,9 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     /// @notice Contract constructor.
-    /// @dev Sale fee is calculated by feeNumerator/feeDenominator.
     /// @param feeNumerator Numerator for fee calculation.
     /// @param feeDenominator Denominator for fee calculation.
     /// @param treasury Address to send fees to.
-    /// @dev Warning: no checks are performed on the treasury address - make sure you have the private key for this account!
     constructor(
         uint256 feeNumerator,
         uint256 feeDenominator,
@@ -124,19 +130,25 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- PURCHASING METHODS --------------------
 
+    // PAYMENT - on top of or from input parameter
+
+    /// @notice Call to purchase some listed ERC20 tokens.
+    /// @dev Token price is included as a parameter to prevent price manipulation.
+    /// @param listingId The ID of the listing whose tokens the caller wishes to purchase.
+    /// @param amount The amount of listed tokens the caller wishes to purchase.
+    /// @param price The price at which the caller wishes to purchase the tokens.
     function buyERC20(
         uint256 listingId,
         uint256 amount,
         uint256 price
     ) public onlyBuyer {
         ERC20Listing memory listing = ERC20Listings[listingId];
-        require(listing.currency != address(0), 'Non-valid listing ID provided');
-        require(listing.price == price, 'Cannot make purchase at input price');
-        uint256 payment = amount * listing.price;
+        require(listing.price == price, 'Listed price not equal to input price');
+        require(listing.amount >= amount, 'Insufficient listed tokens');
+        uint256 payment = amount * price;
         uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
-        require(listing.amount >= amount, 'Insufficient listed tokens');
         IERC20(listing.product).transfer(msg.sender, amount);
         ERC20Listings[listingId].amount -= amount;
         emit Sale(listingId);
@@ -144,12 +156,12 @@ contract ChangeblockMarketplace is Ownable {
 
     function buyERC721(uint256 listingId, uint256 price) public onlyBuyer {
         ERC721Listing memory listing = ERC721Listings[listingId];
-        require(listing.currency != address(0), 'Non-valid listing ID provided');
-        require(listing.price == price, 'Cannot make purchase at input price');
+        require(listing.price == price, 'Listed price not equal to input price');
         uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC721(listing.product).transferFrom(address(this), msg.sender, listing.id);
+        delete ERC721Listings[listingId];
         emit Sale(listingId);
     }
 
@@ -254,8 +266,7 @@ contract ChangeblockMarketplace is Ownable {
     /// @notice Called by bidder to withdraw their bid and claim bidded funds.
     /// @dev Deletes bid at index in bids[listingId][msg.sender].
     function withdrawBid(uint256 listingId, uint256 index) public {
-        require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
-        // console.log(bids[listingId][msg.sender][index].payment);
+        // require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
         IERC20(ERC20Listings[listingId].currency).transfer(
             msg.sender,
             bids[listingId][msg.sender][index].payment
@@ -278,7 +289,8 @@ contract ChangeblockMarketplace is Ownable {
             ERC20Listings[listingId].amount >= quantity,
             'Insufficient tokens listed to fulfill bid'
         );
-        require(bids[listingId][bidder].length > index, 'No bid at input index'); // is this necessary?
+        // Only needed if want clear exception
+        // require(bids[listingId][bidder].length > index, 'No bid at input index'); // is this necessary?
         Bid memory bid_ = bids[listingId][bidder][index];
         require(
             bid_.quantity == quantity && bid_.payment == payment,
