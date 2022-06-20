@@ -61,27 +61,22 @@ describe('Listing', () => {
     });
 
     // Update with new event
-    it('Emits `` event', async () => {
+    it('Emits ERC20Registration event', async () => {
       await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
       await marketplace.setSellers([deployer.address], [true]);
       const listingId = getERC20ListingId(deployer, ecoToken, stableCoin);
-      // await expect(
-      //   marketplace.listERC20(
-      //     amount,
-      //     ecoTokenPrice,
-      //     ecoToken.address,
-      //     stableCoin.address
-      //   )
-      // )
-      //   .to.emit(marketplace, 'ERC20Registration')
-      //   .withArgs(
-      //     amount,
-      //     ecoTokenPrice,
-      //     deployer.address,
-      //     ecoToken.address,
-      //     stableCoin.address,
-      //     listingId
-      //   );
+      await expect(
+        marketplace.listERC20(amount, ecoTokenPrice, ecoToken.address, stableCoin.address)
+      )
+        .to.emit(marketplace, 'ERC20Registration')
+        .withArgs(
+          amount,
+          ecoTokenPrice,
+          deployer.address,
+          ecoToken.address,
+          stableCoin.address,
+          listingId
+        );
     });
 
     it('Cannot list without seller approval', async () => {
@@ -264,21 +259,23 @@ describe('Listing', () => {
       expect(ERC721Listing.currency).to.equal(stableCoin.address);
     });
 
-    it('Emits `` event', async () => {
+    it('Emits ERC721Registration event', async () => {
       await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
       await marketplace.setSellers([deployer.address], [true]);
       const listingId = getERC721ListingId(ecoNFTId, ecoNFT);
       // UPDATE WITH LATEST EVENT
-      // await expect(
-      //   marketplace.listERC20(
-      //     amount,
-      //     ecoTokenPrice,
-      //     ecoToken.address,
-      //     stableCoin.address
-      //   )
-      // )
-      //   .to.emit(marketplace, '')
-      //   .withArgs();
+      await expect(
+        marketplace.listERC721(ecoNFTId, ecoNFTPrice, ecoNFT.address, stableCoin.address)
+      )
+        .to.emit(marketplace, 'ERC721Registration')
+        .withArgs(
+          ecoNFTId,
+          ecoNFTPrice,
+          deployer.address,
+          ecoNFT.address,
+          stableCoin.address,
+          listingId
+        );
     });
 
     it('Cannot list without seller approval', async () => {
