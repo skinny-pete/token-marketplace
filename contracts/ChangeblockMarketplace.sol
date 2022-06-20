@@ -54,6 +54,8 @@ contract ChangeblockMarketplace is Ownable {
 
     address TREASURY;
 
+    bool buyerWhitelisting = false;
+
     // -------------------- EVENTS --------------------
 
     event ERC20Registration(
@@ -65,7 +67,9 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
-    event ERC20PriceUpdate(uint256 indexed listingId, uint256 price);
+    event ERC20PriceChanged(uint256 indexed listingId, uint256 price);
+    event ERC721PriceChanged(uint indexed listingId, uint price);
+    // ERC20PriceChanged(listingId, price);
 
     event ERC721Registration(
         uint256 id,
@@ -92,11 +96,17 @@ contract ChangeblockMarketplace is Ownable {
 
     event Sale(uint256 indexed listingId);
 
+    event SellerApproval(address[] accounts, bool[] approvals);
+
+    event BuyerApproval(address[] accounts, bool[] approvals);
+
     // -------------------- MODIFIERS --------------------
 
     // Modifier to only permit function calls from approved buyers
     modifier onlyBuyer() {
-        require(buyerApprovals[msg.sender], 'Approved buyers only');
+        if (buyerWhitelisting) {
+            require(buyerApprovals[msg.sender], 'Approved buyers only');
+        }
         _;
     }
 
@@ -219,6 +229,7 @@ contract ChangeblockMarketplace is Ownable {
     function updateERC20Price(uint256 listingId, uint256 price) external {
         require(msg.sender == ERC20Listings[listingId].vendor, 'Only vendor can update price');
         ERC20Listings[listingId].price = price;
+        emit ERC20PriceChanged(listingId, price);
         // EVENT
     }
 
@@ -226,6 +237,7 @@ contract ChangeblockMarketplace is Ownable {
     function updateERC721Price(uint256 listingId, uint256 price) external {
         require(msg.sender == ERC721Listings[listingId].vendor, 'Only vendor can update price');
         ERC721Listings[listingId].price = price;
+        emit ERC721PriceChanged(listingId, price);
         // EVENT
     }
 
@@ -240,6 +252,8 @@ contract ChangeblockMarketplace is Ownable {
         uint256 quantity,
         uint256 payment
     ) public onlyBuyer {
+        bids[listingId][msg.sender].push(Bid(quantity, payment));
+        IERC20(ERC20Listings[listingId].currency).transferFrom(msg.sender, address(this), payment);
         emit BidPlaced(
             listingId,
             quantity,
@@ -247,8 +261,6 @@ contract ChangeblockMarketplace is Ownable {
             msg.sender,
             bids[listingId][msg.sender].length
         );
-        bids[listingId][msg.sender].push(Bid(quantity, payment));
-        IERC20(ERC20Listings[listingId].currency).transferFrom(msg.sender, address(this), payment);
     }
 
     /// @notice Called by bidder to withdraw their bid and claim bidded funds.
@@ -300,6 +312,7 @@ contract ChangeblockMarketplace is Ownable {
         for (uint256 i = 0; i < targets.length; i++) {
             sellerApprovals[targets[i]] = approvals[i];
         }
+        emit SellerApproval(targets, approvals);
         // EVENT
     }
 
@@ -307,6 +320,8 @@ contract ChangeblockMarketplace is Ownable {
         for (uint256 i = 0; i < targets.length; i++) {
             buyerApprovals[targets[i]] = approvals[i];
         }
+
+        emit BuyerApproval(targets, approvals);
         // EVENT
     }
 
@@ -316,6 +331,10 @@ contract ChangeblockMarketplace is Ownable {
 
     function setFeeDenominator(uint256 feeDenominator) external onlyOwner {
         FEE_DENOMINATOR = feeDenominator;
+    }
+
+    function setBuyerWhitelisting(bool whitelisting) external onlyOwner {
+        buyerWhitelisting = whitelisting;
     }
 
     // -------------------- INTERNAL --------------------
