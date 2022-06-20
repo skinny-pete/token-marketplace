@@ -123,28 +123,20 @@ describe('Buying', () => {
     it('Correct tokens purchased after price change', async () => {
       const firstPurchase = ethers.utils.parseEther('10');
       const secondPurchase = ethers.utils.parseEther('50');
-
-      const newPrice = ethers.utils.parseEther('2');
-
+      const newPrice = ethers.BigNumber.from('4');
       await marketplace.connect(notDeployer).buyERC20(listingId, firstPurchase, listingPrice);
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(firstPurchase);
-
-      await marketplace.updateERC20Price(newPrice, listingId);
-
+      await marketplace.updateERC20Price(listingId, newPrice);
       const total = secondPurchase.mul(newPrice);
-
       const expectedPurchase = total.sub(total.mul(feeNumerator).div(feeDenominator));
-
+      // await stableCoin.mint(notDeployer.address, ethers.utils.parseEther('10000'));
+      // await stableCoin
+      //   .connect(notDeployer)
+      //   .increaseAllowance(marketplace.address, ethers.utils.parseEther('10000'));
       await expect(() =>
         marketplace.connect(notDeployer).buyERC20(listingId, secondPurchase, newPrice)
-      ).to.changeTokenBalance(ecoToken, notDeployer, expectedPurchase);
+      ).to.changeTokenBalance(ecoToken, notDeployer, secondPurchase);
     });
-    // it('Reverts if non-valid listing ID supplied', async () => {
-    //   const fakeId = getERC20ListingId(notDeployer, ecoToken, stableCoin); // wrong seller
-    //   await expect(
-    //     marketplace.connect(notDeployer).buyERC20(fakeId, buyAmount, listingPrice.mul('2'))
-    //   ).to.be.revertedWith('Non-valid listing ID provided');
-    // });
   });
 
   describe('ERC721s', () => {

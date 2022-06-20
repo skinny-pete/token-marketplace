@@ -164,7 +164,7 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC20(listing.product).transfer(msg.sender, amount);
-        listing.amount -= amount;
+        ERC20Listings[listingId].amount -= amount;
         emit ERC20Sale(listingId, amount, price, msg.sender);
     }
 
