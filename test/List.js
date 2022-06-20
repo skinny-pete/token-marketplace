@@ -108,8 +108,7 @@ describe('Listing', () => {
         ecoTokenPrice,
         stableCoin
       );
-      // This mintAndApprove call is not working. Had to call explicitly.
-      // await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
+      // Call explicitly.
       await ecoToken.mint(deployer.address, amount);
       await ecoToken.approve(marketplace.address, amount);
       const newEcoTokenPrice = ethers.BigNumber.from('5');

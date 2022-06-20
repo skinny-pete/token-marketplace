@@ -164,11 +164,7 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC20(listing.product).transfer(msg.sender, amount);
-        if (listing.amount == amount) {
-            delete ERC20Listings[listingId];
-        } else {
-            ERC20Listings[listingId].amount -= amount;
-        }
+        listing.amount -= amount;
         emit ERC20Sale(listingId, amount, price, msg.sender);
     }
 
@@ -183,7 +179,6 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC721(listing.product).safeTransferFrom(address(this), msg.sender, listing.id);
-        delete ERC721Listings[listingId];
         emit ERC721Sale(listingId, price, msg.sender);
     }
 
@@ -271,6 +266,7 @@ contract ChangeblockMarketplace is Ownable {
 
     /// @notice Bid an amount (payment) of a listing's currency for an amount (quantity) of its tokens.
     /// @dev Requires ERC20 approval for payment escrow.
+    /// @param listingId The ID of the listing whose tokens are being bid for.
     /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
     /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
     function bid(
@@ -291,8 +287,9 @@ contract ChangeblockMarketplace is Ownable {
 
     /// @notice Called by bidder to withdraw their bid and claim bidded funds.
     /// @dev Deletes bid at index in bids[listingId][msg.sender].
+    /// @param listingId The ID of the listing to which the bid has been made.
+    /// @param index The index of the bid in bids[listingId][msg.sender].
     function withdrawBid(uint256 listingId, uint256 index) public {
-        // require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
         IERC20(ERC20Listings[listingId].currency).transfer(
             msg.sender,
             bids[listingId][msg.sender][index].payment
@@ -315,8 +312,6 @@ contract ChangeblockMarketplace is Ownable {
             ERC20Listings[listingId].amount >= quantity,
             'Insufficient tokens listed to fulfill bid'
         );
-        // Only needed if want clear exception
-        // require(bids[listingId][bidder].length > index, 'No bid at input index'); // is this necessary?
         Bid memory bid_ = bids[listingId][bidder][index];
         require(
             bid_.quantity == quantity && bid_.payment == payment,
