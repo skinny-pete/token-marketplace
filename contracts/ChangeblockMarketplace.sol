@@ -1,16 +1,18 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "hardhat/console.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import 'hardhat/console.sol';
+import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
+import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
 
-/// @title A marketplace for selling and bidding on ERC20s and ERC721s
-/// @author Theo Dale + Peter Whitby
-/// @notice This marketplace allows whitelisted seller and buyers to list / purchase tokens
+/// @title Changeblock Marketplace
+/// @author Theo Dale & Peter Whitby
+/// @notice This marketplace allows whitelisted sellers/buyers to list/purchase ERC20 and ERC721 tokens.
 
 contract ChangeblockMarketplace is Ownable {
+    // -------------------- STRUCTS --------------------
+
     struct ERC20Listing {
         uint256 amount;
         uint256 price;
@@ -28,111 +30,91 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     struct Bid {
-        uint quantity;
-        uint price;
-        address bidder;
+        uint256 quantity;
+        uint256 payment;
     }
-    /// @notice event for an ERC20 listing
-    /// @param amount the quantity of tokens to make available for sale - they are locked
-    /// @param price the price for one token
-    /// @param vendor the address of the lister
-    /// @param product the address of the token being sold
-    ///@param currency the address of the token used as payment (eg a stablecoin)
-    ///@param listingId the unique ID of this listing
-    event ERC20Registration(
-        uint256 amount,
-        uint256 price,
-        address vendor,
-        address product,
-        address currency,
-        uint256 listingId
-    );
-    /// @notice event for an ERC721 listing
-    /// @param id the ERC721 ID of the NFT being sold (not listingId)
-    /// @param price the price of the NFT
-    /// @param vendor the address of the lister
-    /// @param product the address of the NFT being sold
-    /// @param currency the address of the token used as payment (eg a stablecoin)
-    /// @param listingId the unique ID of this listing
-    event ERC721Registration(
-        uint256 id,
-        uint256 price,
-        address vendor,
-        address product,
-        address currency,
-        uint256 listingId
-    );
 
-    /// @notice event for a bid being placed (only applicable to ERC20s)
-    /// @param listingId the id of the listing being bid on
-    /// @param quantity the number of tokens the buyer wishes to purchase
-    /// @param price the price per token the buyer is offering to pay
-    /// @param bidder the address of the account placing the bid
-    event BidPlaced(uint listingId, uint quantity, uint price, address bidder);
+    // -------------------- STATE VARIABLES --------------------
 
-    /// @notice event for a bid being withdrawn (the user cancels their bid before it has been fulfilled)
-    /// @param listingId the ID of the listing from which the bid is withdrawn
-    /// @param bidder the address of the account withdrawing the bid
-    event BidWithdrawn(uint listingId, address bidder);
-
-    /// @notice event for the removal of a listing
-    /// @param listingId the ID of the listing removed
-    event Removal(uint256 listingId);
-
-    /// @notice event emitted when a sale is completed
-    /// @param listingId ID of the listing
-    event Sale(uint256 listingId);
-
-    /// @notice seller whitelist
+    /// @notice Seller whitelist.
     mapping(address => bool) public sellerApprovals;
 
-    /// @notice buyer whitelist
+    /// @notice Buyer whitelist.
     mapping(address => bool) public buyerApprovals;
 
-    //listingId => bids
-    ///@notice mapping of listindId to array of bids
-    mapping(uint256 => Bid[]) public bids;
+    mapping(uint256 => ERC20Listing) public ERC20Listings;
+    mapping(uint256 => ERC721Listing) public ERC721Listings;
 
-    //Account => listingId => indexOfBidInBids;
-    ///@notice Account address => listingId => indexOfBid;
-    mapping(address => mapping(uint => uint)) bidMap;
-
-    ///@notice account => listingId => bool
-    mapping(address => mapping(uint => bool)) hasBid;
-
-    //Bidding process:
-    //user submits bid and transfers tokens to contract where they await approval.
-    //user may withdraw bid at any time
-    //the lister must check their listing to see if it has any bids pending
-
-    modifier onlyBuyer() {
-        require(buyerApprovals[msg.sender], "Approved buyers only");
-        _;
-    }
-
-    modifier onlySeller() {
-        require(sellerApprovals[msg.sender], "Approved sellers only");
-        _;
-    }
-
-    mapping(uint256 => ERC20Listing) public ERC20listings;
-    mapping(uint256 => ERC721Listing) public ERC721listings;
-
-    uint256[] public ERC20listingIds;
-    uint256[] public ERC721listingIds;
+    /// @notice Bidders bids for each listing.
+    /// @dev Maps listingId => bidder => bids on listing.
+    mapping(uint256 => mapping(address => Bid[])) public bids;
 
     uint256 public FEE_NUMERATOR;
     uint256 public FEE_DENOMINATOR;
+
     address TREASURY;
 
-    ///@notice contract constructor. [FEE_NUMERATOR=3, FEE_DENOMINATOR=100] means a 3% fee
-    ///@dev can be any uint, no precision constraints
-    ///@param treasury the address to send fees to
-    ///@dev warning: no checks are performed on the treasury address - make sure you have the private key for this account!
+    // -------------------- EVENTS --------------------
 
+    event ERC20Registration(
+        uint256 amount,
+        uint256 price,
+        address indexed vendor,
+        address indexed product,
+        address currency,
+        uint256 listingId
+    );
+
+    event ERC20PriceUpdate(uint256 indexed listingId, uint256 price);
+
+    event ERC721Registration(
+        uint256 id,
+        uint256 price,
+        address indexed vendor,
+        address indexed product,
+        address currency,
+        uint256 listingId
+    );
+
+    event BidPlaced(
+        uint256 indexed listingId,
+        uint256 quantity,
+        uint256 price,
+        address bidder,
+        uint256 index
+    );
+
+    event BidWithdrawn(uint256 indexed listingId, address bidder, uint256 index);
+
+    event BidAccepted(uint256 indexed listingId, address bidder, uint256 quantity, uint256 payment);
+
+    // event Removal(uint256 indexed listingId);
+
+    event Sale(uint256 indexed listingId);
+
+    // -------------------- MODIFIERS --------------------
+
+    // Modifier to only permit function calls from approved buyers
+    modifier onlyBuyer() {
+        require(buyerApprovals[msg.sender], 'Approved buyers only');
+        _;
+    }
+
+    // Modifier to only permit function calls from approved sellers
+    modifier onlySeller() {
+        require(sellerApprovals[msg.sender], 'Approved sellers only');
+        _;
+    }
+
+    /// @notice Contract constructor.
+    /// @dev Sale fee is calculated by feeNumerator/feeDenominator.
+    /// @param feeNumerator Numerator for fee calculation.
+    /// @param feeDenominator Denominator for fee calculation.
+    /// @param treasury Address to send fees to.
+    /// @dev Warning: no checks are performed on the treasury address - make sure you have the private key for this account!
     constructor(
         uint256 feeNumerator,
-        uint feeDenominator,
+        uint256 feeDenominator,
         address treasury
     ) {
         FEE_NUMERATOR = feeNumerator;
@@ -140,44 +122,56 @@ contract ChangeblockMarketplace is Ownable {
         TREASURY = treasury;
     }
 
-    function popBid(uint listingId, uint index) internal {
-        //Move last element to index, then delete last element
-        //Obviously does not conserve order of elements
-        uint l = bids[listingId].length;
-        require(index <= l);
-        Bid memory movedBid = bids[listingId][l - 1];
-        bids[listingId][index] = bids[listingId][l - 1];
-        bidMap[movedBid.bidder][listingId] = index; //update bidmap, the last element has changed index, so set bidmap to new index
-        delete bids[listingId][l - 1];
+    // -------------------- PURCHASING METHODS --------------------
+
+    function buyERC20(
+        uint256 listingId,
+        uint256 amount,
+        uint256 price
+    ) public onlyBuyer {
+        ERC20Listing memory listing = ERC20Listings[listingId];
+        require(listing.currency != address(0), 'Non-valid listing ID provided');
+        require(listing.price == price, 'Cannot make purchase at input price');
+        uint256 payment = amount * listing.price;
+        uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
+        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
+        IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
+        require(listing.amount >= amount, 'Insufficient listed tokens');
+        IERC20(listing.product).transfer(msg.sender, amount);
+        ERC20Listings[listingId].amount -= amount;
+        emit Sale(listingId);
     }
 
+    function buyERC721(uint256 listingId, uint256 price) public onlyBuyer {
+        ERC721Listing memory listing = ERC721Listings[listingId];
+        require(listing.currency != address(0), 'Non-valid listing ID provided');
+        require(listing.price == price, 'Cannot make purchase at input price');
+        uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
+        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price);
+        IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
+        IERC721(listing.product).transferFrom(address(this), msg.sender, listing.id);
+        emit Sale(listingId);
+    }
+
+    // -------------------- LISTING METHODS --------------------
+
+    /// @dev Listed token price is set to `price` parameter
     function listERC20(
         uint256 amount,
         uint256 price,
         address product,
         address currency
-    ) public onlySeller returns (uint) {
-        IERC20(product).transferFrom(msg.sender, address(this), amount);
-        uint256 listingId = uint256(
-            keccak256(abi.encode(amount, price, msg.sender, product, currency))
-        );
-        ERC20listingIds.push(listingId);
-        ERC20listings[listingId] = ERC20Listing(
-            amount + ERC20listings[listingId].amount,
+    ) public onlySeller returns (uint256) {
+        IERC20(product).transferFrom(msg.sender, address(this), amount); // does this need a require check?
+        uint256 listingId = uint256(keccak256(abi.encode(msg.sender, product, currency)));
+        ERC20Listings[listingId] = ERC20Listing(
+            amount + ERC20Listings[listingId].amount,
             price,
             msg.sender,
             product,
             currency
         );
-        emit ERC20Registration(
-            amount,
-            price,
-            msg.sender,
-            product,
-            currency,
-            listingId
-        );
-
+        emit ERC20Registration(amount, price, msg.sender, product, currency, listingId);
         return listingId;
     }
 
@@ -186,160 +180,155 @@ contract ChangeblockMarketplace is Ownable {
         uint256 price,
         address product,
         address currency
-    ) public onlySeller returns (uint) {
-        IERC721(product).transferFrom(msg.sender, address(this), id);
-        uint256 listingId = uint256(
-            keccak256(abi.encode(id, price, msg.sender, product, currency))
-        );
-        ERC721listingIds.push(listingId);
-        ERC721listings[listingId] = ERC721Listing(
-            id,
-            price,
-            msg.sender,
-            product,
-            currency
-        );
-        emit ERC721Registration(
-            id,
-            price,
-            msg.sender,
-            product,
-            currency,
-            listingId
-        );
-
+    ) public onlySeller returns (uint256) {
+        IERC721(product).transferFrom(msg.sender, address(this), id); // does this need a require check?
+        uint256 listingId = uint256(keccak256(abi.encode(id, product)));
+        ERC721Listings[listingId] = ERC721Listing(id, price, msg.sender, product, currency);
+        emit ERC721Registration(id, price, msg.sender, product, currency, listingId);
         return listingId;
     }
 
-    function buyERC20(uint256 listingId, uint256 amount) public onlyBuyer {
-        ERC20Listing memory listing = ERC20listings[listingId];
-        require(listing.currency != address(0), "invalid ID provided");
-        uint256 payment = amount * listing.price;
-        uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
-        IERC20(listing.currency).transferFrom(
-            msg.sender,
-            listing.vendor,
-            payment
-        );
-        IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
-        require(listing.amount >= amount, "Insufficient listed tokens");
-        IERC20(listing.product).transfer(msg.sender, amount);
-        ERC20listings[listingId].amount -= amount;
-        emit Sale(listingId);
-    }
-
-    function buyERC721(uint256 listingId) public onlyBuyer {
-        ERC721Listing memory listing = ERC721listings[listingId];
-        require(listing.currency != address(0), "invalid ID provided");
-        uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
-        IERC20(listing.currency).allowance(msg.sender, address(this));
-        IERC20(listing.currency).transferFrom(
-            msg.sender,
-            listing.vendor,
-            listing.price
-        );
-        IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
-        IERC721(listing.product).transferFrom(
-            address(this),
-            msg.sender,
-            listing.id
-        );
-        emit Sale(listingId);
-    }
-
-    function bidERC20(
-        uint256 _listingId,
-        uint _quantity,
-        uint _price
-    ) public onlyBuyer {
-        ERC20Listing memory listing = ERC20listings[_listingId];
-        require(
-            IERC20(listing.currency).transferFrom(
-                msg.sender,
-                address(this),
-                _quantity * _price
-            )
-        );
-
-        bids[_listingId].push(Bid(_quantity, _price, msg.sender));
-        uint l = bids[_listingId].length;
-        bidMap[msg.sender][_listingId] = l - 1;
-        hasBid[msg.sender][_listingId] = true;
-        emit BidPlaced(_listingId, _quantity, _price, msg.sender);
-    }
-
-    function respondBid(
-        uint listingId,
-        uint index,
-        bool accept
-    ) public onlySeller {
-        ERC20Listing memory listing = ERC20listings[listingId];
-        require(msg.sender == listing.vendor, "Not your listing");
-        require(
-            !hasBid[msg.sender][listingId],
-            "Withdraw existing listing first"
-        );
-        Bid storage bid = bids[listingId][index];
-        if (accept) {
-            uint payment = bid.price * bid.quantity;
-            uint fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
-            IERC20(listing.product).transfer(bid.bidder, bid.quantity);
-            ERC20listings[listingId].amount -= bid.quantity;
-
-            IERC20(listing.currency).transfer(TREASURY, fee);
-            IERC20(listing.currency).transfer(listing.vendor, payment - fee);
-        } else {
-            IERC20(listing.currency).transfer(
-                bid.bidder,
-                bid.price * bid.quantity
-            );
-        }
-        popBid(listingId, index);
-    }
-
-    function withdrawBid(uint listingId) public onlyBuyer {
-        require(hasBid[msg.sender][listingId], "No bid to withdraw");
-        uint index = bidMap[msg.sender][listingId];
-        Bid memory bid = bids[listingId][index];
-        ERC20Listing memory listing = ERC20listings[listingId];
-        uint amount = bid.price * bid.quantity;
-        hasBid[msg.sender][listingId] = false;
-
-        IERC20(listing.currency).transfer(msg.sender, amount);
-        popBid(listingId, index);
-    }
-
+    // This method needs events
     function delistERC20(uint256 amount, uint256 listingId) public {
-        ERC20Listing memory listing = ERC20listings[listingId];
+        ERC20Listing memory listing = ERC20Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
-            "Only vendor or marketplace owner can delist"
+            'Only vendor or marketplace owner can delist'
         );
-        require(listing.amount >= amount, "Insufficient tokens listed");
+        require(listing.amount >= amount, 'Insufficient tokens listed');
         IERC20(listing.product).transfer(listing.vendor, amount);
-        ERC20listings[listingId].amount -= amount;
-        emit Removal(listingId);
+        if (listing.amount == amount) {
+            delete ERC20Listings[listingId];
+        } else {
+            ERC20Listings[listingId].amount -= amount;
+        }
     }
 
+    // This method needs events
     function delistERC721(uint256 listingId) public {
-        ERC721Listing memory listing = ERC721listings[listingId];
+        ERC721Listing memory listing = ERC721Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
-            "Only vendor or marketplace owner can delist"
+            'Only vendor or marketplace owner can delist'
         );
-        IERC721(listing.product).transferFrom(
-            address(this),
-            listing.vendor,
-            listing.id
-        );
-        emit Removal(listingId);
+        IERC721(listing.product).transferFrom(address(this), listing.vendor, listing.id);
+        delete ERC721Listings[listingId];
     }
 
-    function approveSeller(address seller, bool approval) public onlyOwner {
-        sellerApprovals[seller] = approval;
+    /// @notice Called by a vendor to change the price of listed ERC20s
+    function updateERC20Price(uint256 listingId, uint256 price) external {
+        require(msg.sender == ERC20Listings[listingId].vendor, 'Only vendor can update price');
+        ERC20Listings[listingId].price = price;
+        // EVENT
     }
 
-    function approveBuyer(address buyer, bool approval) public onlyOwner {
-        buyerApprovals[buyer] = approval;
+    /// @notice Called by a vendor to change the price of a listed ERC721
+    function updateERC721Price(uint256 listingId, uint256 price) external {
+        require(msg.sender == ERC721Listings[listingId].vendor, 'Only vendor can update price');
+        ERC721Listings[listingId].price = price;
+        // EVENT
+    }
+
+    // -------------------- BIDDING --------------------
+
+    /// @notice Bid an amount (payment) of a listing's currency for an amount (quantity) of its tokens.
+    /// @dev Requires ERC20 approval for payment escrow.
+    /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
+    /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
+    function bid(
+        uint256 listingId,
+        uint256 quantity,
+        uint256 payment
+    ) public onlyBuyer {
+        emit BidPlaced(
+            listingId,
+            quantity,
+            payment,
+            msg.sender,
+            bids[listingId][msg.sender].length
+        );
+        bids[listingId][msg.sender].push(Bid(quantity, payment));
+        IERC20(ERC20Listings[listingId].currency).transferFrom(msg.sender, address(this), payment);
+    }
+
+    /// @notice Called by bidder to withdraw their bid and claim bidded funds.
+    /// @dev Deletes bid at index in bids[listingId][msg.sender].
+    function withdrawBid(uint256 listingId, uint256 index) public {
+        require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
+        // console.log(bids[listingId][msg.sender][index].payment);
+        IERC20(ERC20Listings[listingId].currency).transfer(
+            msg.sender,
+            bids[listingId][msg.sender][index].payment
+        );
+        _removeBid(listingId, msg.sender, index);
+        emit BidWithdrawn(listingId, msg.sender, index);
+    }
+
+    /// @notice Called by vendor to accept a bid on their listing.
+    /// @dev Takes input quantity/payment to prevent price being altered after transaction submission.
+    function acceptBid(
+        uint256 listingId,
+        address bidder,
+        uint256 index,
+        uint256 quantity,
+        uint256 payment
+    ) public {
+        require(msg.sender == ERC20Listings[listingId].vendor, 'Only vendor can accept bid');
+        require(
+            ERC20Listings[listingId].amount >= quantity,
+            'Insufficient tokens listed to fulfill bid'
+        );
+        require(bids[listingId][bidder].length > index, 'No bid at input index'); // is this necessary?
+        Bid memory bid_ = bids[listingId][bidder][index];
+        require(
+            bid_.quantity == quantity && bid_.payment == payment,
+            'Bid at input index does not have input quantity and price'
+        );
+        uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
+        IERC20 currency = IERC20(ERC20Listings[listingId].currency);
+        currency.transfer(msg.sender, payment - fee);
+        currency.transfer(TREASURY, fee);
+        IERC20(ERC20Listings[listingId].product).transfer(bidder, quantity);
+        ERC20Listings[listingId].amount -= quantity;
+        _removeBid(listingId, bidder, index);
+        emit BidAccepted(listingId, bidder, quantity, payment);
+    }
+
+    // -------------------- ADMIN --------------------
+
+    function setSellers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
+        for (uint256 i = 0; i < targets.length; i++) {
+            sellerApprovals[targets[i]] = approvals[i];
+        }
+        // EVENT
+    }
+
+    function setBuyers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
+        for (uint256 i = 0; i < targets.length; i++) {
+            buyerApprovals[targets[i]] = approvals[i];
+        }
+        // EVENT
+    }
+
+    function setFeeNumerator(uint256 feeNumerator) external onlyOwner {
+        FEE_NUMERATOR = feeNumerator;
+    }
+
+    function setFeeDenominator(uint256 feeDenominator) external onlyOwner {
+        FEE_DENOMINATOR = feeDenominator;
+    }
+
+    // -------------------- INTERNAL --------------------
+
+    /// @dev Function for deleting a Bid
+    function _removeBid(
+        uint256 listingId,
+        address bidder,
+        uint256 index
+    ) internal {
+        bids[listingId][bidder][index] = bids[listingId][bidder][
+            bids[listingId][bidder].length - 1
+        ];
+        bids[listingId][bidder].pop();
     }
 }
