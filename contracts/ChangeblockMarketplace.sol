@@ -252,12 +252,12 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     /// @notice Called by bidder to withdraw their bid and claim bidded funds.
-    /// @dev Deletes bid at index in bids[listingId][msg.sender]
+    /// @dev Deletes bid at index in bids[listingId][msg.sender].
     function withdrawBid(uint256 listingId, uint256 index) public {
         require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
-        IERC20(ERC20Listings[listingId].currency).transferFrom(
+        // console.log(bids[listingId][msg.sender][index].payment);
+        IERC20(ERC20Listings[listingId].currency).transfer(
             msg.sender,
-            address(this),
             bids[listingId][msg.sender][index].payment
         );
         _removeBid(listingId, msg.sender, index);
@@ -265,7 +265,7 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     /// @notice Called by vendor to accept a bid on their listing.
-    /// @dev Takes input quantity/payment to
+    /// @dev Takes input quantity/payment to prevent price being altered after transaction submission.
     function acceptBid(
         uint256 listingId,
         address bidder,
@@ -278,17 +278,20 @@ contract ChangeblockMarketplace is Ownable {
             ERC20Listings[listingId].amount >= quantity,
             'Insufficient tokens listed to fulfill bid'
         );
-        require(bids[listingId][msg.sender].length > index, 'No bid at input index'); // is this necessary?
+        require(bids[listingId][bidder].length > index, 'No bid at input index'); // is this necessary?
         Bid memory bid_ = bids[listingId][bidder][index];
         require(
             bid_.quantity == quantity && bid_.payment == payment,
             'Bid at input index does not have input quantity and price'
         );
-        IERC20(ERC20Listings[listingId].currency).transfer(msg.sender, payment);
-        IERC20(ERC20Listings[listingId].product).transfer(msg.sender, quantity);
+        uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
+        IERC20 currency = IERC20(ERC20Listings[listingId].currency);
+        currency.transfer(msg.sender, payment - fee);
+        currency.transfer(TREASURY, fee);
+        IERC20(ERC20Listings[listingId].product).transfer(bidder, quantity);
         ERC20Listings[listingId].amount -= quantity;
         _removeBid(listingId, bidder, index);
-        emit BidAccepted(listingId, msg.sender, quantity, payment);
+        emit BidAccepted(listingId, bidder, quantity, payment);
     }
 
     // -------------------- ADMIN --------------------
@@ -307,9 +310,13 @@ contract ChangeblockMarketplace is Ownable {
         // EVENT
     }
 
-    function setFeeNumerator() external onlyOwner {}
+    function setFeeNumerator(uint256 feeNumerator) external onlyOwner {
+        FEE_NUMERATOR = feeNumerator;
+    }
 
-    function setFeeDenominator() external onlyOwner {}
+    function setFeeDenominator(uint256 feeDenominator) external onlyOwner {
+        FEE_DENOMINATOR = feeDenominator;
+    }
 
     // -------------------- INTERNAL --------------------
 

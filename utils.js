@@ -15,20 +15,7 @@ const getERC20ListingId = (seller, sellToken, buyToken) => {
 // Get ID for either an ERC721 listing
 const getERC721ListingId = (tokenId, sellToken) => {
   return ethers.utils.keccak256(
-    ethers.utils.defaultAbiCoder.encode(
-      ['uint256', 'address'],
-      [tokenId, sellToken.address]
-    )
-  );
-};
-
-// Get ID for either an ERC721 listing
-const getBidId = (tokenId, sellToken) => {
-  return ethers.utils.keccak256(
-    ethers.utils.defaultAbiCoder.encode(
-      ['uint256', 'address'],
-      [tokenId, sellToken.address]
-    )
+    ethers.utils.defaultAbiCoder.encode(['uint256', 'address'], [tokenId, sellToken.address])
   );
 };
 
@@ -52,35 +39,17 @@ const getFee = (amount, feeNumerator, feeDenominator) => {
 };
 
 // Mint, approve, then list some tokens
-const setupERC20Listing = async (
-  lister,
-  marketplace,
-  token,
-  amount,
-  price,
-  currency
-) => {
+const setupERC20Listing = async (lister, marketplace, token, amount, price, currency) => {
   await mintAndApproveERC20(token, amount, lister, marketplace);
   await marketplace.setSellers([lister.address], [true]);
-  await marketplace
-    .connect(lister)
-    .listERC20(amount, price, token.address, currency.address);
+  await marketplace.connect(lister).listERC20(amount, price, token.address, currency.address);
   return getERC20ListingId(lister, token, currency);
 };
 
-const setupERC721Listing = async (
-  lister,
-  marketplace,
-  tokenId,
-  token,
-  price,
-  currency
-) => {
+const setupERC721Listing = async (lister, marketplace, tokenId, token, price, currency) => {
   await mintAndApproveERC721(token, tokenId, lister, marketplace);
   await marketplace.setSellers([lister.address], [true]);
-  await marketplace
-    .connect(lister)
-    .listERC721(tokenId, price, token.address, currency.address);
+  await marketplace.connect(lister).listERC721(tokenId, price, token.address, currency.address);
   return getERC721ListingId(tokenId, token);
 };
 
@@ -92,5 +61,4 @@ module.exports = {
   setupERC20Listing,
   setupERC721Listing,
   getFee,
-  getBidId,
 };
