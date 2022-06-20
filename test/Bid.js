@@ -35,6 +35,14 @@ describe('Bidding', () => {
   const quantity = ethers.utils.parseEther('10');
   const payment = ethers.utils.parseEther('15');
 
+  // event BidPlaced(
+  //     uint256 indexed listingId,
+  //     uint256 quantity,
+  //     uint256 price,
+  //     address bidder,
+  //     uint256 index
+  // );
+
   it('Registers a bid', async () => {
     await expect(marketplace.connect(notDeployer).bid(listingId, quantity, payment))
       .to.emit(marketplace, 'BidPlaced')

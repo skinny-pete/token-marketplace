@@ -75,10 +75,6 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
-    event ERC20PriceChanged(uint256 indexed listingId, uint256 price);
-    event ERC721PriceChanged(uint indexed listingId, uint price);
-    // ERC20PriceChanged(listingId, price);
-
     event ERC721Registration(
         uint256 id,
         uint256 price,
@@ -88,10 +84,22 @@ contract ChangeblockMarketplace is Ownable {
         uint256 listingId
     );
 
+    event ERC20Delisting(uint256 listingId, uint256 amount);
+
+    event ERC721Delisting(uint256 listingId);
+
+    event ERC20PriceChanged(uint256 indexed listingId, uint256 price);
+
+    event ERC721PriceChanged(uint256 indexed listingId, uint256 price);
+
+    event ERC20Sale(uint256 indexed listingId, uint256 amount, uint256 price, address buyer);
+
+    event ERC721Sale(uint256 indexed listingId, uint256 price, address buyer);
+
     event BidPlaced(
         uint256 indexed listingId,
         uint256 quantity,
-        uint256 price,
+        uint256 payment,
         address bidder,
         uint256 index
     );
@@ -101,8 +109,6 @@ contract ChangeblockMarketplace is Ownable {
     event BidAccepted(uint256 indexed listingId, address bidder, uint256 quantity, uint256 payment);
 
     event Removal(uint256 indexed listingId);
-
-    event Sale(uint256 indexed listingId);
 
     event SellerApproval(address[] accounts, bool[] approvals);
 
@@ -140,8 +146,6 @@ contract ChangeblockMarketplace is Ownable {
 
     // -------------------- PURCHASING METHODS --------------------
 
-    // PAYMENT - on top of or from input parameter
-
     /// @notice Call to purchase some listed ERC20 tokens.
     /// @dev Token price is included as a parameter to prevent price manipulation.
     /// @param listingId The ID of the listing whose tokens the caller wishes to purchase.
@@ -160,10 +164,18 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC20(listing.product).transfer(msg.sender, amount);
-        ERC20Listings[listingId].amount -= amount;
-        emit Sale(listingId);
+        if (listing.amount == amount) {
+            delete ERC20Listings[listingId];
+        } else {
+            ERC20Listings[listingId].amount -= amount;
+        }
+        emit ERC20Sale(listingId, amount, price, msg.sender);
     }
 
+    /// @notice Call to purchase a listed ERC721 token.
+    /// @dev Token price is included as a parameter to prevent price manipulation.
+    /// @param listingId The ID of the listing whose token the caller wishes to purchase.
+    /// @param price The price at which the caller wishes to purchase the token.
     function buyERC721(uint256 listingId, uint256 price) public onlyBuyer {
         ERC721Listing memory listing = ERC721Listings[listingId];
         require(listing.price == price, 'Listed price not equal to input price');
@@ -172,12 +184,17 @@ contract ChangeblockMarketplace is Ownable {
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC721(listing.product).transferFrom(address(this), msg.sender, listing.id);
         delete ERC721Listings[listingId];
-        emit Sale(listingId);
+        emit ERC721Sale(listingId, price, msg.sender);
     }
 
     // -------------------- LISTING METHODS --------------------
 
-    /// @dev Listed token price is set to `price` parameter
+    /// @notice Call to list an amount of ERC20 tokens.
+    /// @dev If same token + currency, will add to a previous listing.
+    /// @param amount The amount of tokens to list.
+    /// @param price The price at which each listed token is to cost.
+    /// @param product The address of the listed token.
+    /// @param currency The address of the payment currency for the sale.
     function listERC20(
         uint256 amount,
         uint256 price,
@@ -197,6 +214,10 @@ contract ChangeblockMarketplace is Ownable {
         return listingId;
     }
 
+    /// @notice List an ERC721 token for sale.
+    /// @param price The price at which the token is to be sold.
+    /// @param product The address of the listed token.
+    /// @param currency The address of the payment currency for the sale.
     function listERC721(
         uint256 id,
         uint256 price,
@@ -224,6 +245,7 @@ contract ChangeblockMarketplace is Ownable {
         } else {
             ERC20Listings[listingId].amount -= amount;
         }
+        emit ERC20Delisting(listingId, amount);
     }
 
     // This method needs events
@@ -235,6 +257,7 @@ contract ChangeblockMarketplace is Ownable {
         );
         IERC721(listing.product).transferFrom(address(this), listing.vendor, listing.id);
         delete ERC721Listings[listingId];
+        emit ERC721Delisting(listingId);
     }
 
     /// @notice Called by a vendor to change the price of listed ERC20s
@@ -242,7 +265,6 @@ contract ChangeblockMarketplace is Ownable {
         require(msg.sender == ERC20Listings[listingId].vendor, 'Only vendor can update price');
         ERC20Listings[listingId].price = price;
         emit ERC20PriceChanged(listingId, price);
-        // EVENT
     }
 
     /// @notice Called by a vendor to change the price of a listed ERC721
@@ -250,7 +272,6 @@ contract ChangeblockMarketplace is Ownable {
         require(msg.sender == ERC721Listings[listingId].vendor, 'Only vendor can update price');
         ERC721Listings[listingId].price = price;
         emit ERC721PriceChanged(listingId, price);
-        // EVENT
     }
 
     // -------------------- BIDDING --------------------
@@ -264,7 +285,6 @@ contract ChangeblockMarketplace is Ownable {
         uint256 quantity,
         uint256 payment
     ) public onlyBuyer {
-        bids[listingId][msg.sender].push(Bid(quantity, payment));
         IERC20(ERC20Listings[listingId].currency).transferFrom(msg.sender, address(this), payment);
         emit BidPlaced(
             listingId,
@@ -273,6 +293,7 @@ contract ChangeblockMarketplace is Ownable {
             msg.sender,
             bids[listingId][msg.sender].length
         );
+        bids[listingId][msg.sender].push(Bid(quantity, payment));
     }
 
     /// @notice Called by bidder to withdraw their bid and claim bidded funds.
