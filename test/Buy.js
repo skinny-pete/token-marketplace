@@ -1,4 +1,5 @@
 const { expect } = require('chai');
+const { providers } = require('ethers');
 const { ethers } = require('hardhat');
 const {
   getERC20ListingId,
@@ -101,6 +102,43 @@ describe('Buying', () => {
       ).to.be.revertedWith('Listed price not equal to input price');
     });
 
+    it('Deploys not using buyer whitelist', async () => {
+      const toBuy = ethers.utils.parseEther('10');
+      await expect(marketplace.connect(notDeployer).buyERC20(listingId, toBuy, listingPrice));
+    });
+
+    it('Allows multiple purchases from same listing', async () => {
+      const firstPurchase = ethers.utils.parseEther('10');
+      const secondPurchase = ethers.utils.parseEther('50');
+
+      await marketplace.connect(notDeployer).buyERC20(listingId, firstPurchase, listingPrice);
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(firstPurchase);
+
+      await marketplace.connect(notDeployer).buyERC20(listingId, secondPurchase, listingPrice);
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(
+        firstPurchase.add(secondPurchase)
+      );
+    });
+
+    it('Correct tokens purchased after price change', async () => {
+      const firstPurchase = ethers.utils.parseEther('10');
+      const secondPurchase = ethers.utils.parseEther('50');
+
+      const newPrice = ethers.utils.parseEther('2');
+
+      await marketplace.connect(notDeployer).buyERC20(listingId, firstPurchase, listingPrice);
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(firstPurchase);
+
+      await marketplace.updateERC20Price(newPrice, listingId);
+
+      const total = secondPurchase.mul(newPrice);
+
+      const expectedPurchase = total.sub(total.mul(feeNumerator).div(feeDenominator));
+
+      await expect(() =>
+        marketplace.connect(notDeployer).buyERC20(listingId, secondPurchase, newPrice)
+      ).to.changeTokenBalance(ecoToken, notDeployer, expectedPurchase);
+    });
     // it('Reverts if non-valid listing ID supplied', async () => {
     //   const fakeId = getERC20ListingId(notDeployer, ecoToken, stableCoin); // wrong seller
     //   await expect(
