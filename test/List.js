@@ -145,7 +145,7 @@ describe('Listing', () => {
       // )
       //   .to.emit(marketplace, 'Removal')
       //   .withArgs(listingId);
-      await marketplace.connect(notDeployer).delistERC20(delistedAmount, listingId);
+      await marketplace.connect(notDeployer).delistERC20(listingId, delistedAmount);
       expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);
       const ERC20Listing = await marketplace.ERC20Listings(listingId);
@@ -166,7 +166,7 @@ describe('Listing', () => {
       // await expect(marketplace.delistERC20(delistedAmount, listingId))
       //   .to.emit(marketplace, 'Removal')
       //   .withArgs(listingId);
-      await marketplace.delistERC20(delistedAmount, listingId);
+      await marketplace.delistERC20(listingId, delistedAmount);
       expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);
       const ERC20Listing = await marketplace.ERC20Listings(listingId);

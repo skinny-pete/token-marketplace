@@ -8,10 +8,9 @@ import '@openzeppelin/contracts/access/Ownable.sol';
 
 /// @title Changeblock Marketplace
 /// @author Theo Dale & Peter Whitby
-/// @notice This marketplace allows whitelisted sellers/buyers to list/purchase ERC20 and ERC721 tokens.
-
+/// @notice marketplace for to list and purchase ERC20/ERC721 tokens.
 contract ChangeblockMarketplace is Ownable {
-    // -------------------- STRUCTS --------------------
+    // -------------------------------- STRUCTS --------------------------------
 
     // Represents one or more ERC20 tokens listed for-sale.
     struct ERC20Listing {
@@ -37,7 +36,7 @@ contract ChangeblockMarketplace is Ownable {
         uint256 payment;
     }
 
-    // -------------------- STATE VARIABLES --------------------
+    // -------------------------------- STATE VARIABLES --------------------------------
 
     /// @notice Seller whitelist.
     mapping(address => bool) public sellerApprovals;
@@ -64,7 +63,7 @@ contract ChangeblockMarketplace is Ownable {
 
     bool buyerWhitelisting = false;
 
-    // -------------------- EVENTS --------------------
+    // -------------------------------- EVENTS --------------------------------
 
     event ERC20Registration(
         uint256 amount,
@@ -114,7 +113,7 @@ contract ChangeblockMarketplace is Ownable {
 
     event BuyerApproval(address[] accounts, bool[] approvals);
 
-    // -------------------- MODIFIERS --------------------
+    // -------------------------------- MODIFIERS --------------------------------
 
     // Modifier to only permit function calls from approved buyers
     modifier onlyBuyer() {
@@ -130,6 +129,8 @@ contract ChangeblockMarketplace is Ownable {
         _;
     }
 
+    // -------------------------------- CONSTRUCTOR --------------------------------
+
     /// @notice Contract constructor.
     /// @param feeNumerator Numerator for fee calculation.
     /// @param feeDenominator Denominator for fee calculation.
@@ -144,7 +145,7 @@ contract ChangeblockMarketplace is Ownable {
         TREASURY = treasury;
     }
 
-    // -------------------- PURCHASING METHODS --------------------
+    // -------------------------------- PURCHASING METHODS --------------------------------
 
     /// @notice Call to purchase some listed ERC20 tokens.
     /// @dev Token price is included as a parameter to prevent price manipulation.
@@ -182,7 +183,7 @@ contract ChangeblockMarketplace is Ownable {
         emit ERC721Sale(listingId, price, msg.sender);
     }
 
-    // -------------------- LISTING METHODS --------------------
+    // -------------------------------- LISTING METHODS --------------------------------
 
     /// @notice Call to list an amount of ERC20 tokens.
     /// @dev If same token + currency, will add to a previous listing.
@@ -226,7 +227,11 @@ contract ChangeblockMarketplace is Ownable {
         return listingId;
     }
 
-    function delistERC20(uint256 amount, uint256 listingId) public {
+    /// @notice Remove one or more ERC20 tokens from a listing.
+    /// @dev Can only be called by the lister of the tokens. Delisted tokens are sent to the lister's wallet.
+    /// @param listingId The ID of the listing whose tokens are to be removed.
+    /// @param amount The amount of listed tokens to remove.
+    function delistERC20(uint256 listingId, uint256 amount) public {
         ERC20Listing memory listing = ERC20Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
@@ -238,6 +243,9 @@ contract ChangeblockMarketplace is Ownable {
         emit ERC20Delisting(listingId, amount);
     }
 
+    /// @notice Remove a listed ERC721.
+    /// @dev Can only be called by the lister of the token. Returns it to its lister's wallet.
+    /// @param listingId The ID of the ERC721's listing.
     function delistERC721(uint256 listingId) public {
         ERC721Listing memory listing = ERC721Listings[listingId];
         require(
@@ -262,7 +270,7 @@ contract ChangeblockMarketplace is Ownable {
         emit ERC721PriceChanged(listingId, price);
     }
 
-    // -------------------- BIDDING --------------------
+    // -------------------------------- BIDDING METHODS --------------------------------
 
     /// @notice Bid an amount (payment) of a listing's currency for an amount (quantity) of its tokens.
     /// @dev Requires ERC20 approval for payment escrow.
@@ -299,7 +307,12 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     /// @notice Called by vendor to accept a bid on their listing.
-    /// @dev Takes input quantity/payment to prevent price being altered after transaction submission.
+    /// @dev Takes input quantity/payment to prevent those parameters being altered by the bidder after transaction submission.
+    /// @param listingId The ID of the listing to which the bid has been made.
+    /// @param bidder The address of the bid maker.
+    /// @param index The index of the bid in bids[listingId][msg.sender].
+    /// @param quantity The accepted number of tokens to be sold.
+    /// @param payment The accepted payment for the sold tokens.
     function acceptBid(
         uint256 listingId,
         address bidder,
@@ -327,7 +340,7 @@ contract ChangeblockMarketplace is Ownable {
         emit BidAccepted(listingId, bidder, quantity, payment);
     }
 
-    // -------------------- ADMIN --------------------
+    // -------------------------------- ADMIN METHODS --------------------------------
 
     function setSellers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
         for (uint256 i = 0; i < targets.length; i++) {
@@ -355,9 +368,9 @@ contract ChangeblockMarketplace is Ownable {
         buyerWhitelisting = whitelisting;
     }
 
-    // -------------------- INTERNAL --------------------
+    // -------------------------------- INTERNAL METHODS --------------------------------
 
-    /// @dev Function for deleting a Bid
+    // Removes bid at bids[listingId][bidder]
     function _removeBid(
         uint256 listingId,
         address bidder,
