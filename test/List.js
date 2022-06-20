@@ -17,9 +17,7 @@ describe('Listing', () => {
 
   before(async () => {
     [deployer, notDeployer, treasury] = await ethers.getSigners();
-    marketplaceFactory = await ethers.getContractFactory(
-      'ChangeblockMarketplace'
-    );
+    marketplaceFactory = await ethers.getContractFactory('ChangeblockMarketplace');
     mintableERC20Factory = await ethers.getContractFactory('MintableERC20');
     mintableERC721Factory = await ethers.getContractFactory('MintableERC721');
   });
@@ -89,12 +87,7 @@ describe('Listing', () => {
     it('Cannot list without seller approval', async () => {
       await mintAndApproveERC20(ecoToken, amount, deployer, marketplace);
       await expect(
-        marketplace.listERC20(
-          amount,
-          ecoTokenPrice,
-          ecoToken.address,
-          stableCoin.address
-        )
+        marketplace.listERC20(amount, ecoTokenPrice, ecoToken.address, stableCoin.address)
       ).to.be.revertedWith('Approved sellers only');
     });
 
@@ -102,12 +95,7 @@ describe('Listing', () => {
       await ecoToken.mint(deployer.address, amount);
       await marketplace.setSellers([deployer.address], [true]);
       await expect(
-        marketplace.listERC20(
-          amount,
-          ecoTokenPrice,
-          ecoToken.address,
-          stableCoin.address
-        )
+        marketplace.listERC20(amount, ecoTokenPrice, ecoToken.address, stableCoin.address)
       ).to.be.revertedWith('ERC20: insufficient allowance');
     });
 
@@ -126,12 +114,7 @@ describe('Listing', () => {
       await ecoToken.approve(marketplace.address, amount);
       const newEcoTokenPrice = ethers.BigNumber.from('5');
       await expect(
-        marketplace.listERC20(
-          amount,
-          newEcoTokenPrice,
-          ecoToken.address,
-          stableCoin.address
-        )
+        marketplace.listERC20(amount, newEcoTokenPrice, ecoToken.address, stableCoin.address)
       )
         .to.emit(marketplace, 'ERC20Registration')
         .withArgs(
@@ -143,9 +126,7 @@ describe('Listing', () => {
           listingId
         );
       const ERC20Listing = await marketplace.ERC20Listings(listingId);
-      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(
-        amount.mul(2)
-      );
+      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.mul(2));
       expect(await ecoToken.balanceOf(deployer.address)).to.equal(0);
       expect(ERC20Listing.amount).to.equal(amount.mul(2));
       expect(ERC20Listing.price).to.equal(newEcoTokenPrice);
@@ -170,15 +151,9 @@ describe('Listing', () => {
       // )
       //   .to.emit(marketplace, 'Removal')
       //   .withArgs(listingId);
-      await marketplace
-        .connect(notDeployer)
-        .delistERC20(delistedAmount, listingId);
-      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(
-        amount.sub(delistedAmount)
-      );
-      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(
-        delistedAmount
-      );
+      await marketplace.connect(notDeployer).delistERC20(delistedAmount, listingId);
+      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);
       const ERC20Listing = await marketplace.ERC20Listings(listingId);
       expect(ERC20Listing.amount).to.equal(amount.sub(delistedAmount));
     });
@@ -198,34 +173,10 @@ describe('Listing', () => {
       //   .to.emit(marketplace, 'Removal')
       //   .withArgs(listingId);
       await marketplace.delistERC20(delistedAmount, listingId);
-      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(
-        amount.sub(delistedAmount)
-      );
-      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(
-        delistedAmount
-      );
+      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);
       const ERC20Listing = await marketplace.ERC20Listings(listingId);
       expect(ERC20Listing.amount).to.equal(amount.sub(delistedAmount));
-    });
-
-    it('Delisting all tokens deletes the listing', async () => {
-      const listingId = await setupERC20Listing(
-        deployer,
-        marketplace,
-        ecoToken,
-        amount,
-        ecoTokenPrice,
-        stableCoin
-      );
-      await marketplace.delistERC20(amount, listingId);
-      expect(await ecoToken.balanceOf(marketplace.address)).to.equal(0);
-      expect(await ecoToken.balanceOf(deployer.address)).to.equal(amount);
-      const ERC20Listing = await marketplace.ERC20Listings(listingId);
-      expect(ERC20Listing.amount).to.equal(0);
-      expect(ERC20Listing.price).to.equal(0);
-      expect(ERC20Listing.vendor).to.equal(ethers.constants.AddressZero);
-      expect(ERC20Listing.product).to.equal(ethers.constants.AddressZero);
-      expect(ERC20Listing.currency).to.equal(ethers.constants.AddressZero);
     });
 
     it('Rejects delist of excess tokens', async () => {
@@ -237,9 +188,9 @@ describe('Listing', () => {
         ecoTokenPrice,
         stableCoin
       );
-      await expect(
-        marketplace.delistERC20(amount.mul(2), listingId)
-      ).to.be.revertedWith('Insufficient tokens listed');
+      await expect(marketplace.delistERC20(amount.mul(2), listingId)).to.be.revertedWith(
+        'Insufficient tokens listed'
+      );
     });
 
     it('Rejects delist from non-lister/non-owner account', async () => {
@@ -281,9 +232,7 @@ describe('Listing', () => {
         stableCoin
       );
       await expect(
-        marketplace
-          .connect(notDeployer)
-          .updateERC20Price(listingId, ethers.BigNumber.from('5'))
+        marketplace.connect(notDeployer).updateERC20Price(listingId, ethers.BigNumber.from('5'))
       ).to.be.revertedWith('Only vendor can update price');
     });
   });
@@ -335,12 +284,7 @@ describe('Listing', () => {
     it('Cannot list without seller approval', async () => {
       await mintAndApproveERC721(ecoNFT, ecoNFTId, deployer, marketplace);
       await expect(
-        marketplace.listERC721(
-          ecoNFTId,
-          ecoNFTPrice,
-          ecoNFT.address,
-          stableCoin.address
-        )
+        marketplace.listERC721(ecoNFTId, ecoNFTPrice, ecoNFT.address, stableCoin.address)
       ).to.be.revertedWith('Approved sellers only');
     });
 
@@ -348,12 +292,7 @@ describe('Listing', () => {
       await ecoNFT.mint(deployer.address);
       await marketplace.setSellers([deployer.address], [true]);
       await expect(
-        marketplace.listERC721(
-          ecoNFTId,
-          ecoNFTPrice,
-          ecoNFT.address,
-          stableCoin.address
-        )
+        marketplace.listERC721(ecoNFTId, ecoNFTPrice, ecoNFT.address, stableCoin.address)
       ).to.be.revertedWith('ERC721: transfer caller is not owner nor approved');
     });
 
@@ -368,13 +307,7 @@ describe('Listing', () => {
         stableCoin
       );
       await marketplace.connect(notDeployer).delistERC721(listingId);
-      const ERC721Listing = await marketplace.ERC721Listings(listingId);
       expect(await ecoNFT.ownerOf(ecoNFTId)).to.equal(notDeployer.address);
-      expect(ERC721Listing.id).to.equal(0);
-      expect(ERC721Listing.price).to.equal(0);
-      expect(ERC721Listing.vendor).to.equal(ethers.constants.AddressZero);
-      expect(ERC721Listing.product).to.equal(ethers.constants.AddressZero);
-      expect(ERC721Listing.currency).to.equal(ethers.constants.AddressZero);
     });
 
     // Add events
@@ -388,13 +321,7 @@ describe('Listing', () => {
         stableCoin
       );
       await marketplace.delistERC721(listingId);
-      const ERC721Listing = await marketplace.ERC721Listings(listingId);
       expect(await ecoNFT.ownerOf(ecoNFTId)).to.equal(notDeployer.address);
-      expect(ERC721Listing.id).to.equal(0);
-      expect(ERC721Listing.price).to.equal(0);
-      expect(ERC721Listing.vendor).to.equal(ethers.constants.AddressZero);
-      expect(ERC721Listing.product).to.equal(ethers.constants.AddressZero);
-      expect(ERC721Listing.currency).to.equal(ethers.constants.AddressZero);
     });
 
     // Add events
@@ -407,9 +334,9 @@ describe('Listing', () => {
         ecoNFTPrice,
         stableCoin
       );
-      await expect(
-        marketplace.connect(notDeployer).delistERC721(listingId)
-      ).to.be.revertedWith('Only vendor or marketplace owner can delist');
+      await expect(marketplace.connect(notDeployer).delistERC721(listingId)).to.be.revertedWith(
+        'Only vendor or marketplace owner can delist'
+      );
     });
 
     it('Vendor can update listing price', async () => {
@@ -437,9 +364,7 @@ describe('Listing', () => {
         stableCoin
       );
       await expect(
-        marketplace
-          .connect(notDeployer)
-          .updateERC721Price(listingId, ethers.BigNumber.from('100'))
+        marketplace.connect(notDeployer).updateERC721Price(listingId, ethers.BigNumber.from('100'))
       ).to.be.revertedWith('Only vendor can update price');
     });
   });

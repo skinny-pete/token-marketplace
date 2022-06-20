@@ -182,7 +182,7 @@ contract ChangeblockMarketplace is Ownable {
         uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
         IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
-        IERC721(listing.product).transferFrom(address(this), msg.sender, listing.id);
+        IERC721(listing.product).safeTransferFrom(address(this), msg.sender, listing.id);
         delete ERC721Listings[listingId];
         emit ERC721Sale(listingId, price, msg.sender);
     }
@@ -231,7 +231,6 @@ contract ChangeblockMarketplace is Ownable {
         return listingId;
     }
 
-    // This method needs events
     function delistERC20(uint256 amount, uint256 listingId) public {
         ERC20Listing memory listing = ERC20Listings[listingId];
         require(
@@ -240,23 +239,17 @@ contract ChangeblockMarketplace is Ownable {
         );
         require(listing.amount >= amount, 'Insufficient tokens listed');
         IERC20(listing.product).transfer(listing.vendor, amount);
-        if (listing.amount == amount) {
-            delete ERC20Listings[listingId];
-        } else {
-            ERC20Listings[listingId].amount -= amount;
-        }
+        ERC20Listings[listingId].amount -= amount;
         emit ERC20Delisting(listingId, amount);
     }
 
-    // This method needs events
     function delistERC721(uint256 listingId) public {
         ERC721Listing memory listing = ERC721Listings[listingId];
         require(
             listing.vendor == msg.sender || owner() == msg.sender,
             'Only vendor or marketplace owner can delist'
         );
-        IERC721(listing.product).transferFrom(address(this), listing.vendor, listing.id);
-        delete ERC721Listings[listingId];
+        IERC721(listing.product).safeTransferFrom(address(this), listing.vendor, listing.id);
         emit ERC721Delisting(listingId);
     }
 
@@ -346,16 +339,13 @@ contract ChangeblockMarketplace is Ownable {
             sellerApprovals[targets[i]] = approvals[i];
         }
         emit SellerApproval(targets, approvals);
-        // EVENT
     }
 
     function setBuyers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
         for (uint256 i = 0; i < targets.length; i++) {
             buyerApprovals[targets[i]] = approvals[i];
         }
-
         emit BuyerApproval(targets, approvals);
-        // EVENT
     }
 
     function setFeeNumerator(uint256 feeNumerator) external onlyOwner {
