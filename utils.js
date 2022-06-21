@@ -1,7 +1,5 @@
 // ------------------- CHANGEBLOCK MARKETPLACE UTILS -------------------
 
-// For use in tests and scripts
-
 // Get ID for either an ERC20 listing
 const getERC20ListingId = (seller, sellToken, buyToken) => {
   return ethers.utils.keccak256(
