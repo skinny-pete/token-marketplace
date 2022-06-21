@@ -183,12 +183,5 @@ describe('Buying', () => {
         marketplace.connect(notDeployer).buyERC721(listingId, listingPrice.mul(2))
       ).to.be.revertedWith('Listed price not equal to input price');
     });
-
-    // it('Reverts if non-valid listing ID supplied', async () => {
-    //   const fakeId = getERC721ListingId(ecoNFTId.add(1), ecoNFT); // wrong seller
-    //   await expect(
-    //     marketplace.connect(notDeployer).buyERC721(fakeId, listingPrice)
-    //   ).to.be.revertedWith('Non-valid listing ID provided');
-    // });
   });
 });
