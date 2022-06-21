@@ -41,7 +41,7 @@ describe('Listing', () => {
       ecoToken = await mintableERC20Factory.deploy('Eco Token', 'ET');
     });
 
-    it('Correct post listing state', async () => {
+    it('Listings struct created with correct parameters', async () => {
       const listingId = await setupERC20Listing(
         deployer,
         marketplace,
@@ -139,12 +139,6 @@ describe('Listing', () => {
         stableCoin
       );
       const delistedAmount = amount.div(4);
-      // OLD EVENTS
-      // await expect(
-      //   marketplace.connect(notDeployer).delistERC20(delistedAmount, listingId)
-      // )
-      //   .to.emit(marketplace, 'Removal')
-      //   .withArgs(listingId);
       await marketplace.connect(notDeployer).delistERC20(listingId, delistedAmount);
       expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);
@@ -162,10 +156,6 @@ describe('Listing', () => {
         stableCoin
       );
       const delistedAmount = amount.div(3);
-      // OLD EVENTS
-      // await expect(marketplace.delistERC20(delistedAmount, listingId))
-      //   .to.emit(marketplace, 'Removal')
-      //   .withArgs(listingId);
       await marketplace.delistERC20(listingId, delistedAmount);
       expect(await ecoToken.balanceOf(marketplace.address)).to.equal(amount.sub(delistedAmount));
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(delistedAmount);

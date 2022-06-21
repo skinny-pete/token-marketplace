@@ -14,7 +14,7 @@ describe('Bidding', () => {
     mintableERC20Factory = await ethers.getContractFactory('MintableERC20');
   });
 
-  let listingId; // ID of beforeEach lisiting
+  let listingId; // set in beforeEach
 
   const price = ethers.BigNumber.from('2');
   const amount = ethers.utils.parseEther('100');
@@ -35,15 +35,7 @@ describe('Bidding', () => {
   const quantity = ethers.utils.parseEther('10');
   const payment = ethers.utils.parseEther('15');
 
-  // event BidPlaced(
-  //     uint256 indexed listingId,
-  //     uint256 quantity,
-  //     uint256 price,
-  //     address bidder,
-  //     uint256 index
-  // );
-
-  it('Registers a bid', async () => {
+  it('Allows a single bid', async () => {
     await expect(marketplace.connect(notDeployer).bid(listingId, quantity, payment))
       .to.emit(marketplace, 'BidPlaced')
       .withArgs(listingId, quantity, payment, notDeployer.address, 0);
@@ -54,7 +46,7 @@ describe('Bidding', () => {
     expect(await currency.balanceOf(marketplace.address)).to.equal(payment);
   });
 
-  it('Registers multiple bids', async () => {
+  it('Allows multiple bids', async () => {
     await marketplace.connect(notDeployer).bid(listingId, quantity, payment);
     const secondQuantity = quantity.mul(2);
     const secondPayment = payment.mul(2);
@@ -117,7 +109,7 @@ describe('Bidding', () => {
     expect(await currency.balanceOf(marketplace.address)).to.equal(0);
   });
 
-  it('Withdraw a bidders bid from multiple', async () => {
+  it('Withdraw multiple bids', async () => {
     await marketplace.connect(notDeployer).bid(listingId, quantity, payment);
     await marketplace.connect(notDeployer).bid(listingId, quantity.mul(2), payment.mul(3));
     await marketplace.connect(notDeployer).bid(listingId, quantity.div(4), payment.mul(5));
@@ -133,10 +125,5 @@ describe('Bidding', () => {
     expect(await currency.balanceOf(notDeployer.address)).to.equal(balance.sub(payment.mul(6)));
   });
 
-  // it('Withdraw a bidders bid from multiple', async () => {
-  //   await marketplace.connect(notDeployer).bid(listingId, quantity, payment);
-  //   await marketplace.connect(notDeployer).withdrawBid(listingId, 0);
-  // });
+  //Missing further tests here, eg multiple users withdrawing multiple bids on same listing
 });
-
-// npx hardhat test test/Bid.js

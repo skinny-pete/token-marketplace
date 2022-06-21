@@ -341,7 +341,10 @@ contract ChangeblockMarketplace is Ownable {
     }
 
     // -------------------------------- ADMIN METHODS --------------------------------
-
+    /// @notice function to approve account(s) to allow them to create listings on the platform
+    /// @dev default is of course unapproved (false)
+    /// @param targets array of accounts to approve/retract approval
+    /// @param approvals array of bools, true means approved to make listings, false means unapproved
     function setSellers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
         for (uint256 i = 0; i < targets.length; i++) {
             sellerApprovals[targets[i]] = approvals[i];
@@ -349,6 +352,8 @@ contract ChangeblockMarketplace is Ownable {
         emit SellerApproval(targets, approvals);
     }
 
+    /// @notice function to allow buyer(s) to make purchases, see setSellers
+    /// @dev note that until buyer whitelisting has been enabled using setBuyerWhitelisting, this function will have no effect on users
     function setBuyers(address[] calldata targets, bool[] calldata approvals) public onlyOwner {
         for (uint256 i = 0; i < targets.length; i++) {
             buyerApprovals[targets[i]] = approvals[i];
@@ -371,6 +376,7 @@ contract ChangeblockMarketplace is Ownable {
     // -------------------------------- INTERNAL METHODS --------------------------------
 
     // Removes bid at bids[listingId][bidder]
+    /// @dev does not conserve Bid[] order
     function _removeBid(
         uint256 listingId,
         address bidder,
