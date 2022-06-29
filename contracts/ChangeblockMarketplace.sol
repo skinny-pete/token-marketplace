@@ -21,6 +21,21 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
+    function getListing(uint256 listingId)
+        public
+        view
+        returns (
+            uint256,
+            uint256,
+            address,
+            address,
+            address
+        )
+    {
+        ERC20Listing memory listing = ERC20Listings[listingId];
+        return (listing.amount, listing.price, listing.vendor, listing.product, listing.currency);
+    }
+
     // Represents an ERC721 listed for sale.
     struct ERC721Listing {
         uint256 id;
@@ -160,9 +175,9 @@ contract ChangeblockMarketplace is Ownable {
         ERC20Listing memory listing = ERC20Listings[listingId];
         require(listing.price == price, 'Listed price not equal to input price');
         require(listing.amount >= amount, 'Insufficient listed tokens');
-        uint256 payment = amount * price;
+        uint256 payment = (amount * price) / 1 ether;
         uint256 fee = (payment * FEE_NUMERATOR) / FEE_DENOMINATOR;
-        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment);
+        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, payment - fee);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC20(listing.product).transfer(msg.sender, amount);
         ERC20Listings[listingId].amount -= amount;

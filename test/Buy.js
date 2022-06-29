@@ -41,7 +41,6 @@ describe('Buying', () => {
     let listingId; // ID for listing of ERC20s
 
     const listedAmount = ethers.utils.parseEther('250');
-    const listingPrice = ethers.BigNumber.from('3');
 
     beforeEach(async () => {
       ecoToken = await mintableERC20Factory.deploy('Eco Token', 'ET');
@@ -63,13 +62,19 @@ describe('Buying', () => {
     });
 
     const buyAmount = ethers.utils.parseEther('100');
+    const listingPrice = ethers.utils.parseEther('3');
 
     it('Correct post buy state', async () => {
       await marketplace.connect(notDeployer).buyERC20(listingId, buyAmount, listingPrice);
-      expect(await stableCoin.balanceOf(deployer.address)).to.equal(buyAmount.mul(listingPrice));
-      expect(await stableCoin.balanceOf(treasury.address)).to.equal(
-        buyAmount.mul(listingPrice).mul(feeNumerator).div(feeDenominator)
-      );
+
+      expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(buyAmount);
+
+      const spend = ethers.utils.parseEther('300');
+      const fee = spend.mul(feeNumerator).div(feeDenominator);
+
+      expect(await stableCoin.balanceOf(deployer.address)).to.equal(spend.sub(fee));
+      expect(await stableCoin.balanceOf(treasury.address)).to.equal(fee);
+
       expect(await ecoToken.balanceOf(notDeployer.address)).to.equal(buyAmount);
       expect(await ecoToken.balanceOf(marketplace.address)).to.equal(listedAmount.sub(buyAmount));
       const ERC20Listing = await marketplace.ERC20Listings(listingId);
