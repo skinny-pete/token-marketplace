@@ -76,7 +76,7 @@ contract ChangeblockMarketplace is Ownable {
 
     address TREASURY;
 
-    bool buyerWhitelisting = false;
+    bool buyerWhitelisting;
 
     // -------------------------------- EVENTS --------------------------------
 
@@ -122,11 +122,11 @@ contract ChangeblockMarketplace is Ownable {
 
     event BidAccepted(uint256 indexed listingId, address bidder, uint256 quantity, uint256 payment);
 
-    event Removal(uint256 indexed listingId);
-
     event SellerApproval(address[] accounts, bool[] approvals);
 
     event BuyerApproval(address[] accounts, bool[] approvals);
+
+    event FeeChanged(uint newNumerator, uint newDenominator);
 
     // -------------------------------- MODIFIERS --------------------------------
 
@@ -157,6 +157,7 @@ contract ChangeblockMarketplace is Ownable {
     ) {
         FEE_NUMERATOR = feeNumerator;
         FEE_DENOMINATOR = feeDenominator;
+        require(FEE_NUMERATOR < FEE_DENOMINATOR);
         TREASURY = treasury;
     }
 
@@ -192,7 +193,7 @@ contract ChangeblockMarketplace is Ownable {
         ERC721Listing memory listing = ERC721Listings[listingId];
         require(listing.price == price, 'Listed price not equal to input price');
         uint256 fee = (listing.price * FEE_NUMERATOR) / FEE_DENOMINATOR;
-        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price);
+        IERC20(listing.currency).transferFrom(msg.sender, listing.vendor, listing.price - fee);
         IERC20(listing.currency).transferFrom(msg.sender, TREASURY, fee);
         IERC721(listing.product).safeTransferFrom(address(this), msg.sender, listing.id);
         emit ERC721Sale(listingId, price, msg.sender);
@@ -378,10 +379,14 @@ contract ChangeblockMarketplace is Ownable {
 
     function setFeeNumerator(uint256 feeNumerator) external onlyOwner {
         FEE_NUMERATOR = feeNumerator;
+
+        emit FeeChanged(FEE_NUMERATOR, FEE_DENOMINATOR);
     }
 
     function setFeeDenominator(uint256 feeDenominator) external onlyOwner {
         FEE_DENOMINATOR = feeDenominator;
+
+        emit FeeChanged(FEE_NUMERATOR, FEE_DENOMINATOR);
     }
 
     function setBuyerWhitelisting(bool whitelisting) external onlyOwner {
