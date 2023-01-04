@@ -6,10 +6,10 @@ import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC721/IERC721.sol';
 import '@openzeppelin/contracts/access/Ownable.sol';
 
-/// @title Changeblock Marketplace
+/// @title Marketplace
 /// @author Theo Dale & Peter Whitby
 /// @notice marketplace for to list and purchase ERC20/ERC721 tokens.
-contract ChangeblockMarketplace is Ownable {
+contract Marketplace is Ownable {
     // -------------------------------- STRUCTS --------------------------------
 
     // Represents one or more ERC20 tokens listed for-sale.
@@ -21,17 +21,9 @@ contract ChangeblockMarketplace is Ownable {
         address currency;
     }
 
-    function getListing(uint256 listingId)
-        public
-        view
-        returns (
-            uint256,
-            uint256,
-            address,
-            address,
-            address
-        )
-    {
+    function getListing(
+        uint256 listingId
+    ) public view returns (uint256, uint256, address, address, address) {
         ERC20Listing memory listing = ERC20Listings[listingId];
         return (listing.amount, listing.price, listing.vendor, listing.product, listing.currency);
     }
@@ -150,11 +142,7 @@ contract ChangeblockMarketplace is Ownable {
     /// @param feeNumerator Numerator for fee calculation.
     /// @param feeDenominator Denominator for fee calculation.
     /// @param treasury Address to send fees to.
-    constructor(
-        uint256 feeNumerator,
-        uint256 feeDenominator,
-        address treasury
-    ) {
+    constructor(uint256 feeNumerator, uint256 feeDenominator, address treasury) {
         FEE_NUMERATOR = feeNumerator;
         FEE_DENOMINATOR = feeDenominator;
         require(FEE_NUMERATOR < FEE_DENOMINATOR);
@@ -168,11 +156,7 @@ contract ChangeblockMarketplace is Ownable {
     /// @param listingId The ID of the listing whose tokens the caller wishes to purchase.
     /// @param amount The amount of listed tokens the caller wishes to purchase.
     /// @param price The price at which the caller wishes to purchase the tokens.
-    function buyERC20(
-        uint256 listingId,
-        uint256 amount,
-        uint256 price
-    ) public onlyBuyer {
+    function buyERC20(uint256 listingId, uint256 amount, uint256 price) public onlyBuyer {
         ERC20Listing memory listing = ERC20Listings[listingId];
         require(listing.price == price, 'Listed price not equal to input price');
         require(listing.amount >= amount, 'Insufficient listed tokens');
@@ -293,11 +277,7 @@ contract ChangeblockMarketplace is Ownable {
     /// @param listingId The ID of the listing whose tokens are being bid for.
     /// @param quantity The amount of tokens being bid for - e.g. a bid for 1000 CBTs.
     /// @param payment The total size of the bid being made - e.g. a bid of 550 USDC.
-    function bid(
-        uint256 listingId,
-        uint256 quantity,
-        uint256 payment
-    ) public onlyBuyer {
+    function bid(uint256 listingId, uint256 quantity, uint256 payment) public onlyBuyer {
         IERC20(ERC20Listings[listingId].currency).transferFrom(msg.sender, address(this), payment);
         emit BidPlaced(
             listingId,
@@ -397,11 +377,7 @@ contract ChangeblockMarketplace is Ownable {
 
     // Removes bid at bids[listingId][bidder]
     /// @dev does not conserve Bid[] order
-    function _removeBid(
-        uint256 listingId,
-        address bidder,
-        uint256 index
-    ) internal {
+    function _removeBid(uint256 listingId, address bidder, uint256 index) internal {
         bids[listingId][bidder][index] = bids[listingId][bidder][
             bids[listingId][bidder].length - 1
         ];
